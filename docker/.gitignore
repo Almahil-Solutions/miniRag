@@ -1,0 +1,5 @@
+env/.env*
+
+!.env.Example.*
+
+minirag/alembic.ini
