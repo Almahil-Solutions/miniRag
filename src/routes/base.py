@@ -1,5 +1,6 @@
 from fastapi import APIRouter, FastAPI, Depends
 from helpers.config import get_settings, Settings
+from datetime import datetime 
 
 base_router = APIRouter(
     prefix="/api/v1",
@@ -16,5 +17,6 @@ async def welcome(app_settings: Settings = Depends(get_settings)):
     return {
         "message": f"Welcome to the {app_name} App v{app_version}",
         "app_name": app_name,
-        "app_version": app_version       
+        "app_version": app_version,
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }

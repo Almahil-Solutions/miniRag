@@ -38,7 +38,7 @@ jobs:
               fi
             done
 
-            if ! ss -tuln | grep ":80"; then
+            if ! ss -tuln | grep -q ":80"; then
               echo "Service failed to start on port 80."
               exit 1
             fi
