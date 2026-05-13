@@ -44,7 +44,5 @@ class AssetModel(BaseDataModel):
                 Asset.asset_name == asset_name
             )
             result = await session.execute(query)
-            assets = result.scalars().all()
-        return assets
-        
-        
+            asset = result.scalars().first()
+        return asset
