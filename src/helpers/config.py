@@ -41,6 +41,17 @@ class Settings(BaseSettings):
     POSTGRES_PORT: int
     POSTGRES_MAIN_DATABASE: str
 
+    # Celery Configuration - Essential settings Only
+    CELERY_BROKER_URL: str = None
+    CELERY_RESULT_BACKEND: str = None
+    CELERY_TASK_SERIALIZER: str = "json"
+    CELERY_TASK_TIME_LIMIT: int = 600
+    CELERY_TASK_ACKS_LATE: bool = True
+    CELERY_WORKER_CONCURRENCY: int = 2
+    CELERY_FLOWER_PASSWORD: str = None
+    CELERY_TASK_CLEANUP_RETENTION: int = 86400
+
+
     class Config:
         env_file = ".env"
 
