@@ -1,2 +1,2 @@
 
-from .minirag.schemes import Project, DataChunk, RetrievedDocument, Asset
+from .minirag.schemes import Project, DataChunk, RetrievedDocument, Asset, CeleryTaskExecution
