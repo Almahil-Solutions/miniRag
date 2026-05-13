@@ -30,19 +30,19 @@ class PGVectorProvider(VectorDBInterface):
         self.default_index_name = lambda collection_name: f"{collection_name}_vector_idx"
     
     async def connect(self):
-        try:
-            async with self.db_client() as session:
+        async with self.db_client() as session:
+            try:
                 async with session.begin():
-                    await session.execute(sql_text(
-                        "CREATE EXTENSION IF NOT EXISTS vector"
-                    ))
-                await session.commit()
-        except Exception as e:
-            # If the extension already exists or is being created by another worker, ignore the error
-            if "already exists" in str(e).lower():
-                self.logger.info("Extension 'vector' already exists or is being created by another worker.")
-            else:
-                raise e
+                    #check if the vector extension is installed
+                    is_vector_installed = await session.execute(sql_text("SELECT 1 FROM pg_extension WHERE extname = 'vector'"))
+                    if not is_vector_installed.scalar_one_or_none():
+                        # Only create if it does not exist
+                        await session.execute(sql_text("CREATE EXTENSION vector"))
+                        await session.commit()
+            except Exception as e:
+                # If the extension already exists or any other error occurs, raise the exception
+                self.logger.error(f"Vector extension setup: {str(e)}")
+                await session.rollback()
 
     async def disconnect(self):
         pass
