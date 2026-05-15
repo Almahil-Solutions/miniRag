@@ -82,7 +82,7 @@ class IdempotencyManager:
 
 
 
-    async def should_execute_task(self, task_name: str, task_args: dict, celery_task_id: str, task_time_limit: int = 300) -> tuple[bool, CeleryTaskExecution]:
+    async def should_execute_task(self, task_name: str, task_args: dict, celery_task_id: str, task_time_limit: int = 600) -> tuple[bool, CeleryTaskExecution]:
         """Check if task should be executed or return existing result.
         Args:
             task_time_limit: Time limit in seconds after which a stuck task can be re-executed
