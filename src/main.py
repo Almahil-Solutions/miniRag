@@ -1,3 +1,4 @@
+import os
 import logging
 from contextlib import asynccontextmanager
 
@@ -100,8 +101,17 @@ async def lifespan(app: FastAPI):
 
 
 # ── Application factory ────────────────────────────────────────────────────────
+# Conditionally disable OpenAPI documentation and schema in production (P0.5)
+_app_env = os.getenv("APP_ENV", "production").strip().lower()
+_is_dev = _app_env in ("development", "dev", "local")
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(
+    title="miniRAG",
+    docs_url="/docs" if _is_dev else None,
+    redoc_url="/redoc" if _is_dev else None,
+    openapi_url="/openapi.json" if _is_dev else None,
+    lifespan=lifespan,
+)
 
 # Prometheus metrics (must be added before other middleware)
 setup_metrics(app)

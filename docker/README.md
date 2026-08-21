@@ -64,12 +64,20 @@ docker compose down -v --remove-orphans
 
 ### 3. Access the services
 
-- FastAPI Application: http://localhost:8000
-- FastAPI Documentation: http://localhost:8000/docs
-- Nginx (serving FastAPI): http://localhost
-- Prometheus: http://localhost:9090
-- Grafana: http://localhost:3000
-- Qdrant UI: http://localhost:6333/dashboard
+| Service | Public / Host Access | Description |
+|---|---|---|
+| **Nginx (HTTP)** | `http://localhost:80` | Redirects to HTTPS (301) |
+| **Nginx (HTTPS)** | `https://localhost:443` | Reverse proxy & TLS termination to FastAPI |
+| **FastAPI (Direct)** | `http://127.0.0.1:8000` | Dev-only direct access (bound to localhost) |
+| **FastAPI Docs** | `http://127.0.0.1:8000/docs` | Available only in `APP_ENV=development` |
+| **Prometheus** | `http://127.0.0.1:9090` | Internal monitoring (bound to localhost) |
+| **Grafana** | `http://127.0.0.1:3000` | Metrics dashboard (bound to localhost) |
+| **Flower** | `http://127.0.0.1:5555` | Celery task dashboard (bound to localhost) |
+| **Qdrant** | `http://127.0.0.1:6333` | Vector database (bound to localhost) |
+| **RabbitMQ UI** | `http://127.0.0.1:15672` | Message broker management (bound to localhost) |
+| **PostgreSQL** | `127.0.0.1:5400` | Vector database (bound to localhost) |
+
+> **Security Note:** Only Nginx ports `80` and `443` are exposed publicly. All internal data and metrics services are restricted to `127.0.0.1` to prevent unauthenticated network access.
 
 ## Volume Management
 

@@ -16,6 +16,7 @@ _PLACEHOLDER_SECRETS = {
 
 class Settings(BaseSettings):
 
+    APP_ENV: str = "production"
     APP_NAME: str
     APP_VERSION: str
 
