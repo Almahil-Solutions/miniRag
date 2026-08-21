@@ -9,6 +9,11 @@ import json
 import psycopg2
 import re
 
+# Allow-list pattern for collection names: must start with a letter/underscore,
+# followed by letters, digits, or underscores only.  This prevents SQL injection
+# via table-name interpolation in DDL statements where bind params cannot be used.
+COLLECTION_NAME_PATTERN = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
+
 class PGVectorProvider(VectorDBInterface):
     def __init__(self,db_client, default_vector_size: int= 786,
                     distance_method: str = DistanceMethodEnums.COSINE.value, index_threshold: int = 100):
@@ -29,10 +34,24 @@ class PGVectorProvider(VectorDBInterface):
         self.index_threshold = index_threshold
         self.default_index_name = lambda collection_name: f"{collection_name}_vector_idx"
     
+    def _validate_collection_name(self, name: str) -> str:
+        """Validate that *name* matches the allow-list pattern so it is safe to
+        interpolate into DDL statements where SQLAlchemy bind params cannot be used.
+        Raises ValueError for any name that does not match.
+        """
+        if not COLLECTION_NAME_PATTERN.match(name):
+            raise ValueError(
+                f"Invalid collection name {name!r}: must match "
+                r"'^[a-zA-Z_][a-zA-Z0-9_]*$'"
+            )
+        return name
+
     async def connect(self):
         async with self.db_client() as session:
             try:
                 async with session.begin():
+                    # Apply a per-statement timeout to prevent runaway queries.
+                    await session.execute(sql_text("SET statement_timeout = '30s'"))
                     #check if the vector extension is installed
                     is_vector_installed = await session.execute(sql_text("SELECT 1 FROM pg_extension WHERE extname = 'vector'"))
                     if not is_vector_installed.scalar_one_or_none():
@@ -118,18 +137,15 @@ class PGVectorProvider(VectorDBInterface):
     async def create_collection(self, collection_name: str,
                                 embedding_size: int,
                                 do_reset: bool = False):
+        # Validate before any DDL — collection_name is interpolated into SQL.
+        self._validate_collection_name(collection_name)
+
         if do_reset:
             _ = await self.delete_collection(collection_name)
 
         is_collection_existed = await self.is_collection_exists(collection_name)
 
         if not is_collection_existed:
-            # if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', collection_name):
-            #     self.logger.error(f"can't create collection {collection_name} because it's not alphanumeric")
-            #     return False
-            # chek if collection_name has prefix self.pgvector_table_prefix
-            # if not collection_name.startswith(self.pgvector_table_prefix):
-            #     collection_name = self.pgvector_table_prefix + collection_name
             self.logger.info(f"Creating collection {collection_name}")
             async with self.db_client() as session:
                 async with session.begin():
@@ -202,6 +218,9 @@ class PGVectorProvider(VectorDBInterface):
     async def insert_one(self, collection_name: str, text: str, vector: list,
                             metadata: dict = None,
                             record_id: str = None):
+        # Validate before any DML — collection_name is interpolated into SQL.
+        self._validate_collection_name(collection_name)
+
         is_collection_existed = await self.is_collection_exists(collection_name)
         if not is_collection_existed:
             self.logger.error(f"can't insert new record into collection {collection_name} because it doesn't exist")
@@ -209,14 +228,6 @@ class PGVectorProvider(VectorDBInterface):
         if not record_id:
             self.logger.error(f"can't insert new record into collection without record_id(chunk_id) for {collection_name}")
             return False
-
-
-        # if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', collection_name):
-        #     self.logger.error(f"can't insert into collection {collection_name} because it's not alphanumeric")
-        #     return False
-        # chek if collection_name has prefix self.pgvector_table_prefix
-        # if not collection_name.startswith(self.pgvector_table_prefix):
-        #     collection_name = self.pgvector_table_prefix + collection_name
 
         async with self.db_client() as session:
             async with session.begin():
@@ -245,7 +256,9 @@ class PGVectorProvider(VectorDBInterface):
 
     async def insert_many(self, collection_name: str, texts: list, 
             vectors: list, metadata: list = None,record_ids: list = None, batch_size: int = 50):
-        
+        # Validate before any DML — collection_name is interpolated into SQL.
+        self._validate_collection_name(collection_name)
+
         is_collection_existed = await self.is_collection_exists(collection_name)
         if not is_collection_existed:
             self.logger.error(f"can't insert new records into collection {collection_name} because it doesn't exist")
@@ -256,13 +269,6 @@ class PGVectorProvider(VectorDBInterface):
             return False
         if not metadata or len(metadata) == 0:
             metadata = [None] * len(texts)
-
-        # if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', collection_name):
-        #     self.logger.error(f"can't insert into collection {collection_name} because it's not alphanumeric")
-        #     return False
-        # chek if collection_name has prefix self.pgvector_table_prefix
-        # if not collection_name.startswith(self.pgvector_table_prefix):
-        #     collection_name = self.pgvector_table_prefix + collection_name
         try:
             async with self.db_client() as session:
                 async with session.begin():
@@ -301,7 +307,10 @@ class PGVectorProvider(VectorDBInterface):
     
 
     async def search_by_vector(self, collection_name: str, vector: list, limit: int) -> List[RetrievedDocument]:
-        
+        # Validate collection_name before interpolating into SQL (DDL identifiers
+        # cannot use bind params, so we enforce an allow-list instead).
+        self._validate_collection_name(collection_name)
+
         is_collection_existed = await self.is_collection_exists(collection_name)
         if not is_collection_existed:
             self.logger.error(f"can't search for a record in collection {collection_name} because it doesn't exist")
@@ -310,12 +319,17 @@ class PGVectorProvider(VectorDBInterface):
         vector_str = "[" + ",".join([str(v) for v in vector]) + "]"
         async with self.db_client() as session:
             async with session.begin():
-                search_sql = sql_text(f'SELECT {PgVectorTableSchemeEnums.TEXT.value} as text, '
-                    f'1 - ({PgVectorTableSchemeEnums.VECTOR.value} <=> :vector) as score ' # <-> : L2(Euclidean) distance, <=> : Cosine distance
+                # NOTE: collection_name is already validated against the allow-list
+                # above (COLLECTION_NAME_PATTERN). `limit` is passed as a bound
+                # parameter (:limit) to prevent any numeric injection.
+                search_sql = sql_text(
+                    f'SELECT {PgVectorTableSchemeEnums.TEXT.value} as text, '
+                    f'1 - ({PgVectorTableSchemeEnums.VECTOR.value} <=> :vector) as score '
                     f' FROM {collection_name} '
                     f'ORDER BY score DESC '
-                    f'LIMIT {limit}')
-                result = await session.execute(search_sql, {"vector": vector_str})
+                    f'LIMIT :limit'
+                )
+                result = await session.execute(search_sql, {"vector": vector_str, "limit": limit})
 
                 records = result.fetchall()
                 

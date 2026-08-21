@@ -1,8 +1,10 @@
 from .BaseController import BaseController
 from models.db_schemes import Project, DataChunk
 from stores.llm.LLMEnums import DocumentTypesEnum
+from helpers import get_settings
 from typing import List
 import json
+import os
 
 
 class NLPController(BaseController):
@@ -92,11 +94,22 @@ class NLPController(BaseController):
         self.template_parser.set_language(language)
         system_prompt = self.template_parser.get("rag", "system_prompt")
 
+        # Wrap each retrieved chunk in explicit delimiters to defend against
+        # prompt-injection attacks where document content attempts to override
+        # the system instructions.  The LLM is then instructed only to trust
+        # content between these markers.
+        delimited_chunks = [
+            f"[DOCUMENT {idx + 1} START]\n"
+            f"{self.generation_client.preprocess_text(doc.text)}\n"
+            f"[DOCUMENT {idx + 1} END]"
+            for idx, doc in enumerate(retrieved_documents)
+        ]
+
         documents_prompt = "\n".join([
             self.template_parser.get("rag", "document_prompt",
                 variables={
                     "doc_num": idx + 1,
-                    "chunk_text": self.generation_client.preprocess_text(doc.text),
+                    "chunk_text": delimited_chunks[idx],
                 })
             for idx, doc in enumerate(retrieved_documents)
         ])
@@ -113,6 +126,24 @@ class NLPController(BaseController):
         ]
 
         full_prompt = "\n\n".join([documents_prompt, footer_prompt])
+
+        # Cap the assembled prompt to the model's context limit.  We use a rough
+        # 4-characters-per-token estimate relative to INPUT_DAFAULT_MAX_CHARACTERS.
+        # When over the limit we truncate the documents section so the query +
+        # footer always survive intact.
+        settings = get_settings()
+        if settings.INPUT_DAFAULT_MAX_CHARACTERS:
+            max_prompt_chars: int = settings.INPUT_DAFAULT_MAX_CHARACTERS * 4
+            if len(full_prompt) > max_prompt_chars:
+                self.logger.warning(
+                    f"Prompt length {len(full_prompt)} exceeds cap {max_prompt_chars}; "
+                    "truncating documents section."
+                )
+                # Preserve the footer (query) and truncate documents to fit.
+                footer_len = len(footer_prompt) + 2  # +2 for "\n\n" separator
+                available = max_prompt_chars - footer_len
+                documents_prompt = documents_prompt[:available]
+                full_prompt = "\n\n".join([documents_prompt, footer_prompt])
 
         answer = self.generation_client.generate_text(
             prompt=full_prompt,

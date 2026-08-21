@@ -6,6 +6,7 @@ from .schemes.nlp import PushRequest, SearchRequest
 from models import ResponceSignal, ProjectModel, ChunkModel, DataChunk
 from controllers import NLPController
 import logging
+import os
 from tasks.data_indexing import index_project_data
 
 log = logging.getLogger("uvicorn.error")
@@ -131,11 +132,20 @@ async def answer_rag(
                 "signal": ResponceSignal.RAG_ANSWER_ERROR.value
             }
         )
-    # NOTE: full_prompt and chat_history are intentionally omitted from the
-    # response (issue #15 in PROJECT_SNAPSHOT.md) to prevent prompt leakage.
-    return JSONResponse(
-        content={
-            "signal": ResponceSignal.RAG_ANSWER_SUCCESS.value,
-            "answer": answer,
-        }
-    )
+
+    # Build the base response — never expose prompt internals in production.
+    response_body: dict = {
+        "signal": ResponceSignal.RAG_ANSWER_SUCCESS.value,
+        "answer": answer,
+    }
+
+    # Gate debug fields behind APP_ENV=development to prevent prompt leakage
+    # in production (see PROJECT_SNAPSHOT issue #15).
+    if os.getenv("APP_ENV", "production") == "development":
+        response_body["full_prompt"] = full_prompt
+        response_body["chat_history"] = [
+            msg if isinstance(msg, dict) else vars(msg)
+            for msg in (chat_history or [])
+        ]
+
+    return JSONResponse(content=response_body)
