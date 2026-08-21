@@ -178,9 +178,27 @@ async def answer_rag(
 ):
     """RAG answer generation: semantic search + LLM summarisation.
 
-    Rate limited (plan-aware) and audit-logged with query_text and answer
-    length in result_summary.
+    Rate limited (plan-aware), LLM budget-checked (A5), and audit-logged
+    with query_text, answer length, and call cost in result_summary.
     """
+    # ── Monthly LLM Budget Check (A5) ────────────────────────────────────
+    user_budget = getattr(user, "monthly_llm_budget", None)
+    if user_budget is not None and user_budget > 0:
+        try:
+            log_model = await QueryLogModel.create_instance(db_client=request.app.db_client)
+            current_spend = await log_model.get_monthly_spend(str(user.user_id))
+            if current_spend >= user_budget:
+                return JSONResponse(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    content={
+                        "detail": "Monthly LLM budget exceeded. Please upgrade your plan or contact support.",
+                        "current_spend": current_spend,
+                        "monthly_budget": user_budget,
+                    }
+                )
+        except Exception as exc:
+            log.warning("answer_rag: failed to check monthly LLM budget: %s", exc)
+
     start_ts = time.perf_counter()
     nlp_controller = NLPController(
         vectordb_client=request.app.vectordb_client,
@@ -214,8 +232,10 @@ async def answer_rag(
 
     latency_ms = int((time.perf_counter() - start_ts) * 1_000)
 
-    # ── Detailed audit log (P2.2) ─────────────────────────────────────────
+    # ── Detailed audit log & Cost Tracking (P2.2, A5) ──────────────────────
     try:
+        # Approximate cost calculation based on standard model token pricing
+        estimated_cost = round(0.0015 + (len(answer) / 1000) * 0.002, 6) if answer else 0.0
         log_model = await QueryLogModel.create_instance(db_client=request.app.db_client)
         await log_model.create_log(
             user_id=str(user.user_id),
@@ -226,6 +246,7 @@ async def answer_rag(
                 "answer_length": len(answer) if answer else 0,
                 "limit": search_request.limit,
                 "language": search_request.language,
+                "llm_cost": estimated_cost,
             },
             status="success" if answer else "error",
             latency_ms=latency_ms,

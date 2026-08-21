@@ -1,5 +1,5 @@
 from .minirag_base import SQLAlchemyBase
-from sqlalchemy import Column, String, Boolean, DateTime, func, Enum as SAEnum
+from sqlalchemy import Column, String, Boolean, DateTime, Float, func, Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 import uuid
@@ -21,6 +21,7 @@ class User(SQLAlchemyBase):
     role = Column(SAEnum(UserRole), nullable=False, default=UserRole.MEMBER)
     is_active = Column(Boolean, nullable=False, default=True)
     plan = Column(String, nullable=False, default="free")
+    monthly_llm_budget = Column(Float, nullable=True, default=100.0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

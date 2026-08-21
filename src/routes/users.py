@@ -58,6 +58,7 @@ async def get_my_profile(
             "full_name": user.full_name,
             "role": user.role.value if hasattr(user.role, "value") else str(user.role),
             "plan": user.plan,
+            "monthly_llm_budget": getattr(user, "monthly_llm_budget", 100.0),
             "is_active": user.is_active,
             "created_at": user.created_at.isoformat() if user.created_at else None,
         }

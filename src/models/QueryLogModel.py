@@ -81,3 +81,29 @@ class QueryLogModel(BaseDataModel):
                 )
                 logs = result.scalars().all()
         return logs, total_pages
+
+    async def get_monthly_spend(self, user_id: str) -> float:
+        """Calculate total LLM spend in USD for the user over the last 30 days."""
+        from datetime import datetime, timedelta, timezone
+        cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+        uid = uuid.UUID(str(user_id))
+        total_spend = 0.0
+
+        async with self.db_client() as session:
+            async with session.begin():
+                result = await session.execute(
+                    select(QueryLog.result_summary).where(
+                        QueryLog.user_id == uid,
+                        QueryLog.created_at >= cutoff,
+                    )
+                )
+                summaries = result.scalars().all()
+                for summary in summaries:
+                    if isinstance(summary, dict):
+                        cost = summary.get("llm_cost") or summary.get("cost") or 0.0
+                        try:
+                            total_spend += float(cost)
+                        except (ValueError, TypeError):
+                            pass
+
+        return round(total_spend, 6)

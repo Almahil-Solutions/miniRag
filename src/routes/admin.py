@@ -40,6 +40,7 @@ class AdminUpdateUserRequest(BaseModel):
     """Fields an admin is allowed to modify on a user account."""
     role: Optional[str] = None       # e.g. "admin", "member", "viewer"
     plan: Optional[str] = None       # e.g. "free", "pro", "enterprise"
+    monthly_llm_budget: Optional[float] = None
     is_active: Optional[bool] = None
 
 
@@ -69,6 +70,7 @@ async def list_users(
                     "full_name": u.full_name,
                     "role": u.role.value if hasattr(u.role, "value") else str(u.role),
                     "plan": u.plan,
+                    "monthly_llm_budget": getattr(u, "monthly_llm_budget", 100.0),
                     "is_active": u.is_active,
                     "created_at": u.created_at.isoformat() if u.created_at else None,
                 }
@@ -118,13 +120,16 @@ async def admin_update_user(
     if body.plan is not None:
         user.plan = body.plan
 
+    if body.monthly_llm_budget is not None:
+        user.monthly_llm_budget = body.monthly_llm_budget
+
     if body.is_active is not None:
         user.is_active = body.is_active
 
     updated = await user_model.update_user(user)
     log.info(
-        "Admin updated user: user_id=%s role=%s plan=%s is_active=%s",
-        user_id, body.role, body.plan, body.is_active,
+        "Admin updated user: user_id=%s role=%s plan=%s budget=%s is_active=%s",
+        user_id, body.role, body.plan, body.monthly_llm_budget, body.is_active,
     )
 
     return JSONResponse(
@@ -133,6 +138,7 @@ async def admin_update_user(
             "email": updated.email,
             "role": updated.role.value if hasattr(updated.role, "value") else str(updated.role),
             "plan": updated.plan,
+            "monthly_llm_budget": getattr(updated, "monthly_llm_budget", 100.0),
             "is_active": updated.is_active,
         }
     )
