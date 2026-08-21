@@ -1,6 +1,7 @@
-from fastapi import APIRouter, FastAPI, status, Request
+from fastapi import APIRouter, Depends, status, Request
 from fastapi.responses import JSONResponse
 from helpers import get_settings, Settings
+from helpers.security import get_current_user, require_project_owner
 from .schemes.nlp import PushRequest, SearchRequest
 from models import ResponceSignal, ProjectModel, ChunkModel, DataChunk
 from controllers import NLPController
@@ -17,7 +18,13 @@ nlp_router = APIRouter(
 
 
 @nlp_router.post("/index/push/{project_id}")
-async def index_project(request: Request, project_id: int, push_request: PushRequest ):
+async def index_project(
+    request: Request,
+    project_id: int,
+    push_request: PushRequest,
+    user=Depends(get_current_user),
+    project=Depends(require_project_owner),
+):
     task = index_project_data.delay(
         project_id=project_id,
         do_reset=push_request.do_reset
@@ -31,15 +38,12 @@ async def index_project(request: Request, project_id: int, push_request: PushReq
 
 
 @nlp_router.get("/index/info/{project_id}")
-async def get_project_index_info(request: Request, project_id: int):
-
-    project_model = await ProjectModel.create_instance(
-        db_client=request.app.db_client
-    )
-
-    project = await project_model.get_project_or_create_one(project_id=project_id)
-
-        
+async def get_project_index_info(
+    request: Request,
+    project_id: int,
+    user=Depends(get_current_user),
+    project=Depends(require_project_owner),
+):
     nlp_controller = NLPController(
         vectordb_client=request.app.vectordb_client,
         generation_client=request.app.generation_client,
@@ -63,26 +67,25 @@ async def get_project_index_info(request: Request, project_id: int):
         }
     )
 
-    
-
 
 @nlp_router.post("/index/search/{project_id}")
-async def search_index(request: Request, project_id: int, search_request: SearchRequest ):
-
-    project_model = await ProjectModel.create_instance(db_client=request.app.db_client)
-
-    project = await project_model.get_project_or_create_one(project_id=project_id)
-
-        
+async def search_index(
+    request: Request,
+    project_id: int,
+    search_request: SearchRequest,
+    user=Depends(get_current_user),
+    project=Depends(require_project_owner),
+):
     nlp_controller = NLPController(
         vectordb_client=request.app.vectordb_client,
         generation_client=request.app.generation_client,
         embedding_client=request.app.embedding_client,
         template_parser=request.app.template_parser
-
     )
 
-    results = await nlp_controller.search_vector_db_collection(project=project, text=search_request.text, limit=search_request.limit)
+    results = await nlp_controller.search_vector_db_collection(
+        project=project, text=search_request.text, limit=search_request.limit
+    )
 
     if not results:
         return JSONResponse(
@@ -100,13 +103,13 @@ async def search_index(request: Request, project_id: int, search_request: Search
 
 
 @nlp_router.post("/index/answer/{project_id}")
-async def answer_rag(request: Request, project_id: int, search_request: SearchRequest ):
-
-    project_model = await ProjectModel.create_instance(db_client=request.app.db_client)
-
-    project = await project_model.get_project_or_create_one(project_id=project_id)
-
-
+async def answer_rag(
+    request: Request,
+    project_id: int,
+    search_request: SearchRequest,
+    user=Depends(get_current_user),
+    project=Depends(require_project_owner),
+):
     nlp_controller = NLPController(
         vectordb_client=request.app.vectordb_client,
         generation_client=request.app.generation_client,
@@ -128,11 +131,11 @@ async def answer_rag(request: Request, project_id: int, search_request: SearchRe
                 "signal": ResponceSignal.RAG_ANSWER_ERROR.value
             }
         )
+    # NOTE: full_prompt and chat_history are intentionally omitted from the
+    # response (issue #15 in PROJECT_SNAPSHOT.md) to prevent prompt leakage.
     return JSONResponse(
         content={
             "signal": ResponceSignal.RAG_ANSWER_SUCCESS.value,
             "answer": answer,
-            "full_prompt": full_prompt,
-            "chat_history": chat_history
         }
     )

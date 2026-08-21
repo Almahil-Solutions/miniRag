@@ -3,6 +3,7 @@ import logging
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from routes import base, data, nlp
+from routes.projects import projects_router
 from helpers.config import get_settings
 from stores.llm import LLMProviderFactory, TemplateParser
 from stores.vectordb import VectorDBProviderFactory, VectorDBEnums
@@ -77,3 +78,4 @@ app.on_event("shutdown")(shutdown_span)
 app.include_router(base.base_router)
 app.include_router(data.data_router)
 app.include_router(nlp.nlp_router)
+app.include_router(projects_router)

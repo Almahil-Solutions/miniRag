@@ -26,6 +26,19 @@ class ProjectModel(BaseDataModel):
         # except Exception as e:
             # return e
     
+    async def get_project_by_id(self, project_id: int):
+        """Return the Project with *project_id*, or None if it does not exist.
+
+        Unlike ``get_project_or_create_one`` this method is a pure read: it
+        never auto-creates a project row.  Used by ``require_project_owner``
+        so that missing projects return 404 rather than silently materialising.
+        """
+        async with self.db_client() as session:
+            async with session.begin():
+                query = select(Project).where(Project.project_id == project_id)
+                result = await session.execute(query)
+                return result.scalar_one_or_none()
+
     async def get_project_or_create_one(self, project_id: int):
         # try:
             async with self.db_client() as session:

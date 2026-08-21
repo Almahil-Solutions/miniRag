@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     POSTGRES_PORT: int
     POSTGRES_MAIN_DATABASE: str
 
+    # ── JWT Auth ──────────────────────────────────────────────────────────────
+    JWT_SECRET_KEY: str  # Required — no default; must be set in .env
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+
     # Celery Configuration - Essential settings Only
     CELERY_BROKER_URL: Optional[str] = None
     CELERY_RESULT_BACKEND: Optional[str] = None
@@ -115,6 +119,16 @@ class Settings(BaseSettings):
             raise ValueError(
                 "POSTGRES_PASSWORD is set to a known placeholder value "
                 "('postgres_password'). Set a real database password before starting."
+            )
+        return v
+
+    @field_validator("JWT_SECRET_KEY", mode="after")
+    @classmethod
+    def reject_placeholder_jwt_secret(cls, v: str) -> str:
+        if v and v.strip() in _PLACEHOLDER_SECRETS:
+            raise ValueError(
+                "JWT_SECRET_KEY is set to a known placeholder value. "
+                "Generate a real secret (e.g. `openssl rand -hex 32`) before starting."
             )
         return v
 

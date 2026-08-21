@@ -1,6 +1,7 @@
-from fastapi import APIRouter, FastAPI, Depends, UploadFile, File, status, Request
+from fastapi import APIRouter, Depends, UploadFile, status, Request
 from fastapi.responses import JSONResponse
 from helpers import get_settings, Settings
+from helpers.security import get_current_user, require_project_owner
 from controllers import DataController, ProjectController, ProcessController, NLPController
 from models import ResponceSignal, ProjectModel, ChunkModel, DataChunk, AssetModel, Asset, AssetTypeEnum
 import os
@@ -9,7 +10,6 @@ import logging
 from .schemes.data import ProcessRequest
 from tasks.file_processing import process_project_files
 from tasks.process_workflow import process_and_push_workflow
-
 
 
 logger = logging.getLogger("uvicorn.error")
@@ -22,12 +22,14 @@ data_router = APIRouter(
 
 
 @data_router.post("/upload/{project_id}")
-async def upload_data(request: Request, project_id: int, file: UploadFile,
-                        app_settings: Settings = Depends(get_settings)):
-
-    project_model = await ProjectModel.create_instance(db_client=request.app.db_client)
-    project = await project_model.get_project_or_create_one(project_id=project_id)
-    
+async def upload_data(
+    request: Request,
+    project_id: int,
+    file: UploadFile,
+    app_settings: Settings = Depends(get_settings),
+    user=Depends(get_current_user),
+    project=Depends(require_project_owner),
+):
     data_controller = DataController()
     # validate file extension
     is_valid, result_signal = data_controller.validate_upload_file(file=file)
@@ -45,7 +47,7 @@ async def upload_data(request: Request, project_id: int, file: UploadFile,
     try:
         async with aiofiles.open(file_path, "wb") as out_file:
             while chunk := await file.read(app_settings.FILE_DEFAULT_CHUNK_SIZE):
-                await out_file.write(chunk) 
+                await out_file.write(chunk)
     except Exception as e:
         logger.error(f"File upload failed: {str(e)}")
         return JSONResponse(
@@ -54,7 +56,7 @@ async def upload_data(request: Request, project_id: int, file: UploadFile,
                 "result_signal": ResponceSignal.FILE_UPLOADED_FAILED.value
             }
         )
-    
+
     # store asset information in the database
     asset_model = await AssetModel.create_instance(db_client=request.app.db_client)
     asset_resource = Asset(
@@ -73,12 +75,18 @@ async def upload_data(request: Request, project_id: int, file: UploadFile,
         }
     )
 
-@data_router.post("/process/{project_id}")
-async def process_endpoint(request: Request, project_id: int, process_request: ProcessRequest):
 
+@data_router.post("/process/{project_id}")
+async def process_endpoint(
+    request: Request,
+    project_id: int,
+    process_request: ProcessRequest,
+    user=Depends(get_current_user),
+    project=Depends(require_project_owner),
+):
     do_reset = process_request.do_reset
-    chunk_size=process_request.chunk_size
-    chunk_overlap=process_request.chunk_overlap
+    chunk_size = process_request.chunk_size
+    chunk_overlap = process_request.chunk_overlap
 
     task = process_project_files.delay(
         project_id=project_id,
@@ -96,11 +104,16 @@ async def process_endpoint(request: Request, project_id: int, process_request: P
 
 
 @data_router.post("/process-and-push/{project_id}")
-async def process_and_push_endpoint(request: Request, project_id: int, process_request: ProcessRequest):
-
+async def process_and_push_endpoint(
+    request: Request,
+    project_id: int,
+    process_request: ProcessRequest,
+    user=Depends(get_current_user),
+    project=Depends(require_project_owner),
+):
     do_reset = process_request.do_reset
-    chunk_size=process_request.chunk_size
-    chunk_overlap=process_request.chunk_overlap
+    chunk_size = process_request.chunk_size
+    chunk_overlap = process_request.chunk_overlap
 
     workflow_task = process_and_push_workflow.delay(
         project_id=project_id,
