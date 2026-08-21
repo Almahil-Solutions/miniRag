@@ -36,8 +36,6 @@ async def _clean_celery_execution_table():
         raise
     finally:
         try:
-            if db_engine:
-                await db_engine.dispose()
             if vectordb_client:
                 await vectordb_client.disconnect()
         except Exception as e:

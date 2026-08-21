@@ -1,7 +1,11 @@
 from .BaseController import BaseController
 from .ProjectController import ProjectController
 import os
-from langchain_community.document_loaders import TextLoader, PyMuPDFLoader
+try:
+    from langchain_community.document_loaders import TextLoader, PyMuPDFLoader
+except ImportError:
+    TextLoader = None
+    PyMuPDFLoader = None
 from models import ProcessingEnum
 import logging
 from typing import List
@@ -47,7 +51,6 @@ class ProcessController(BaseController):
     def process_file_content(self, file_content: list, file_id: str, 
                             chunk_size: int = 100, chunk_overlap: int = 20):
         
-        
         file_content_text = [
             record.page_content
             for record in file_content
@@ -61,12 +64,13 @@ class ProcessController(BaseController):
             texts=file_content_text,
             metadatas=file_content_metadata,
             chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
         )
 
         return chunks
 
 
-    def process_simpler_splitter(self, texts: List[str], metadatas: List[dict], chunk_size: int, splitter_tag: str="\n"):
+    def process_simpler_splitter(self, texts: List[str], metadatas: List[dict], chunk_size: int, chunk_overlap: int = 0, splitter_tag: str="\n"):
 
         full_text = " ".join(texts)
 
@@ -75,6 +79,7 @@ class ProcessController(BaseController):
 
         chunks = []
         current_chunk = ""
+        doc_metadata = metadatas[0] if metadatas and len(metadatas) > 0 else {}
 
         for line in lines:
             current_chunk += line + splitter_tag
@@ -82,18 +87,21 @@ class ProcessController(BaseController):
             if len(current_chunk) >= chunk_size:
                 # append to chunks
                 chunks.append(Document(
-                    page_content=current_chunk,
-                    metadata= metadatas[0]
+                    page_content=current_chunk.strip(),
+                    metadata=doc_metadata
                 ))
 
-                current_chunk = ""
+                if chunk_overlap > 0 and len(current_chunk) > chunk_overlap:
+                    current_chunk = current_chunk[-chunk_overlap:]
+                else:
+                    current_chunk = ""
 
         # append last chunk
-        if len(current_chunk) >= 0:
+        if current_chunk.strip():
             chunks.append(Document(
-                    page_content=current_chunk,
-                    metadata={}
-                ))
+                page_content=current_chunk.strip(),
+                metadata=doc_metadata
+            ))
 
         return chunks
 

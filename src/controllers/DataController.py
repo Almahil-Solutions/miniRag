@@ -1,3 +1,4 @@
+import filetype
 from .BaseController import BaseController
 from fastapi import UploadFile
 from models import ResponceSignal
@@ -12,11 +13,25 @@ class DataController(BaseController):
 
 
     def validate_upload_file(self, file: UploadFile):
+        # Read the initial bytes (magic numbers) to sniff real file type
+        header = file.file.read(261)
+        file.file.seek(0)
 
-        if file.content_type not in self.app_settings.FILE_ALLOWED_TYPES:
+        kind = filetype.guess(header)
+        if kind is not None:
+            detected_mime = kind.mime
+        else:
+            # Plain text files have no magic number header; verify UTF-8 decodability
+            try:
+                header.decode("utf-8")
+                detected_mime = "text/plain"
+            except UnicodeDecodeError:
+                detected_mime = "application/octet-stream"
+
+        if detected_mime not in self.app_settings.FILE_ALLOWED_TYPES:
             return False, ResponceSignal.FILE_TYPE_NOT_SUPPORTED.value
 
-        if file.size > self.app_settings.FILE_MAX_SIZE * self.size_scale:
+        if file.size and file.size > self.app_settings.FILE_MAX_SIZE * self.size_scale:
             return False, ResponceSignal.FILE_SIZE_EXCEEDED.value
 
         return True, ResponceSignal.SUCCESS.value

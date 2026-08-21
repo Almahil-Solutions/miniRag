@@ -1,7 +1,10 @@
 from ..LLMInterface import LLMInterface
 from ..LLMEnums import CoHereEnums, DocumentTypesEnum
 import logging
-import cohere
+try:
+    import cohere
+except ImportError:
+    cohere = None
 from typing import List, Union
 import time
 

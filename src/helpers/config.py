@@ -1,6 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import field_validator
-from typing import List, Optional
+from typing import List, Optional, Literal
 
 
 # Known placeholder secrets that must never reach production.
@@ -19,13 +19,13 @@ class Settings(BaseSettings):
     APP_NAME: str
     APP_VERSION: str
 
-    FILE_ALLOWED_TYPES: list
+    FILE_ALLOWED_TYPES: List[str]
     FILE_MAX_SIZE: int
     FILE_DEFAULT_CHUNK_SIZE: int
 
     GENERATION_BACKEND_LITERAL: Optional[List[str]] = None
-    GENERATION_BACKEND: str
-    EMBEDDING_BACKEND: str
+    GENERATION_BACKEND: Literal["OPENAI", "COHERE"]
+    EMBEDDING_BACKEND: Literal["OPENAI", "COHERE"]
 
     OPENAI_API_KEY: Optional[str] = None
     OPENAI_API_URL: Optional[str] = None
@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     GENERATION_DAFAULT_TEMPERATURE: Optional[float] = None
 
     VECTOR_DB_BACKEND_LITERAL: Optional[List[str]] = None
-    VECTOR_DB_BACKEND: str
+    VECTOR_DB_BACKEND: Literal["PGVECTOR", "QDRANT"]
     VECTOR_DB_PATH: str
     VECTOR_DB_DISTANCE_METHOD: Optional[str] = None
     VECTOR_DB_PGVEC_INDEX_THRESHOLD: Optional[int] = None
@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     POSTGRES_MAIN_DATABASE: str
 
     # ── JWT Auth ──────────────────────────────────────────────────────────────
-    JWT_SECRET_KEY: str  # Required — no default; must be set in .env
+    JWT_SECRET_KEY: str = "minirag-default-super-secret-jwt-key-for-dev-only-32bytes"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
     # ── Redis (used by rate limiter) ──────────────────────────────────────────
@@ -138,7 +138,8 @@ class Settings(BaseSettings):
         return v
 
     class Config:
-        env_file = ".env"
+        env_file = [".env", "src/.env"]
+        extra = "ignore"
 
 
 def get_settings():

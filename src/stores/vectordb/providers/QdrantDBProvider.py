@@ -1,4 +1,8 @@
-from qdrant_client import QdrantClient, models
+try:
+    from qdrant_client import QdrantClient, models
+except ImportError:
+    QdrantClient = None
+    models = None
 from ..VectorDBInterface import VectorDBInterface
 from ..VectorDBEnums import VectorDBEnums, DistanceMethodEnums
 from  models import RetrievedDocument

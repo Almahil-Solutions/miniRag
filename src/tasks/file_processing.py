@@ -224,8 +224,6 @@ async def _process_project_files(task_instance, project_id: int, file_name: str 
         raise
     finally:
         try:
-            if db_engine:
-                await db_engine.dispose()
             if vectordb_client:
                 await vectordb_client.disconnect()
         except Exception as e:
