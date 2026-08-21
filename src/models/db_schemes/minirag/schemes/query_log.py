@@ -9,7 +9,7 @@ class QueryLog(SQLAlchemyBase):
     __tablename__ = "query_logs"
     log_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=False, index=True)
-    project_id = Column(Integer, ForeignKey("projects.project_id"), nullable=False, index=True)
+    project_id = Column(Integer, ForeignKey("projects.project_id"), nullable=True, index=True)
     endpoint = Column(String, nullable=False)
     query_text = Column(String, nullable=True)
     result_summary = Column(JSONB, nullable=True)

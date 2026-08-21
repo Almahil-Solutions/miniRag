@@ -35,3 +35,7 @@ flower==2.0.1
 # Authentication
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+email-validator==2.2.0
+
+# File type detection
+filetype==1.2.0

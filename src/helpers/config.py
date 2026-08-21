@@ -57,6 +57,11 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str  # Required — no default; must be set in .env
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
+    # ── Redis (used by rate limiter) ──────────────────────────────────────────
+    REDIS_HOST: str = "redis"
+    REDIS_PORT: int = 6379
+    REDIS_PASSWORD: Optional[str] = None
+
     # Celery Configuration - Essential settings Only
     CELERY_BROKER_URL: Optional[str] = None
     CELERY_RESULT_BACKEND: Optional[str] = None

@@ -1,17 +1,18 @@
 """JWT auth helpers and FastAPI dependency functions.
 
 Functions:
-    hash_password       — bcrypt-hash a plaintext password.
-    verify_password     — compare a plaintext password against its hash.
-    create_access_token — issue a signed JWT with sub + role claims.
-    get_current_user    — FastAPI dependency: validates Bearer JWT and returns User.
-    require_role        — dependency factory that gates on one or more UserRole values.
+    hash_password         — bcrypt-hash a plaintext password.
+    verify_password       — compare a plaintext password against its hash.
+    create_access_token   — issue a signed JWT with sub + role claims.
+    get_current_user      — FastAPI dependency: validates Bearer JWT and returns User.
+    require_role          — dependency factory that gates on one or more UserRole values.
     require_project_owner — dependency that returns the Project after verifying caller
-                            ownership; returns 404 (not 403) to avoid leaking project
-                            existence to unauthorised callers.
+                            ownership via project_uuid; returns 404 (not 403) to avoid
+                            leaking project existence to unauthorised callers.
 """
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+from uuid import UUID
 
 from jose import jwt, JWTError
 from passlib.context import CryptContext
@@ -136,19 +137,22 @@ def require_role(*allowed_roles: str):
 
 
 async def require_project_owner(
-    project_id: int,
+    project_uuid: UUID,
     request: Request,
     user=Depends(get_current_user),
 ):
-    """FastAPI dependency: verify the authenticated caller owns *project_id* (or is admin).
+    """FastAPI dependency: verify the authenticated caller owns *project_uuid* (or is admin).
+
+    Uses the public ``project_uuid`` (UUID) rather than the internal integer
+    ``project_id`` so that sequential IDs are never exposed in URLs (P1.7).
 
     **Security note:** returns HTTP 404 (not 403) to avoid leaking whether the
     project exists to callers who do not own it.
 
     Args:
-        project_id: Integer primary key from the URL path parameter.
-        request:    Starlette Request (injected automatically by FastAPI).
-        user:       Authenticated User ORM object (from ``get_current_user``).
+        project_uuid: UUID from the URL path parameter.
+        request:      Starlette Request (injected automatically by FastAPI).
+        user:         Authenticated User ORM object (from ``get_current_user``).
 
     Returns:
         The ``Project`` ORM object if the caller is authorised.
@@ -159,7 +163,7 @@ async def require_project_owner(
     """
     from models import ProjectModel  # deferred to avoid circular imports
     project_model = await ProjectModel.create_instance(db_client=request.app.db_client)
-    project = await project_model.get_project_by_id(project_id)
+    project = await project_model.get_project_by_uuid(project_uuid)
 
     if not project or (
         project.owner_user_id != user.user_id and user.role != "admin"

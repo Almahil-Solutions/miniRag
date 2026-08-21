@@ -2,6 +2,7 @@ from .BaseDataModel import BaseDataModel
 from .db_schemes import Project
 from sqlalchemy.future import select
 from sqlalchemy import func
+import uuid as _uuid
 
 
 class ProjectModel(BaseDataModel):
@@ -10,7 +11,7 @@ class ProjectModel(BaseDataModel):
         self.db_client = self.db_client
 
     @classmethod
-    async def create_instance(cls,db_client):
+    async def create_instance(cls, db_client):
         instance = cls(db_client)
         return instance
 
@@ -25,17 +26,37 @@ class ProjectModel(BaseDataModel):
 
         # except Exception as e:
             # return e
-    
+
     async def get_project_by_id(self, project_id: int):
-        """Return the Project with *project_id*, or None if it does not exist.
+        """Return the Project with *project_id* (integer PK), or None if it does not exist.
 
         Unlike ``get_project_or_create_one`` this method is a pure read: it
-        never auto-creates a project row.  Used by ``require_project_owner``
-        so that missing projects return 404 rather than silently materialising.
+        never auto-creates a project row.  Used internally; prefer
+        ``get_project_by_uuid`` for route path parameters (P1.7).
         """
         async with self.db_client() as session:
             async with session.begin():
                 query = select(Project).where(Project.project_id == project_id)
+                result = await session.execute(query)
+                return result.scalar_one_or_none()
+
+    async def get_project_by_uuid(self, project_uuid):
+        """Return the Project with *project_uuid*, or None if it does not exist.
+
+        This is the preferred lookup for all external-facing routes (P1.7):
+        the public UUID is stable and does not leak the sequential integer PK.
+
+        Args:
+            project_uuid: Either a ``uuid.UUID`` instance or a UUID string.
+
+        Returns:
+            ``Project`` ORM object or ``None``.
+        """
+        if not isinstance(project_uuid, _uuid.UUID):
+            project_uuid = _uuid.UUID(str(project_uuid))
+        async with self.db_client() as session:
+            async with session.begin():
+                query = select(Project).where(Project.project_uuid == project_uuid)
                 result = await session.execute(query)
                 return result.scalar_one_or_none()
 
@@ -67,10 +88,9 @@ class ProjectModel(BaseDataModel):
                 total_pages = total_documents // page_size
                 if total_documents % page_size > 0:
                     total_pages += 1
-                
+
                 query = select(Project).order_by(Project.created_at.desc()).limit(page_size).offset((page - 1) * page_size)
                 result = await session.execute(query)
                 projects = result.scalars().all()
 
                 return projects, total_pages
-
