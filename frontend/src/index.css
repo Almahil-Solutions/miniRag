@@ -1,0 +1,102 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ink-900: #12181F;
+  --ink-800: #1A2029;
+  --ink-700: #3A4351;
+  --ink-400: #6B7482;
+  --paper-0: #F7F4EC;
+  --paper-100: #FFFFFF;
+  --line-200: #E3DDCF;
+  --line-700: #2C333E;
+  --accent-600: #B8863B;
+  --accent-700: #96692A;
+  --accent-100: #F0E4CC;
+  --accent-400: #D3A461;
+  --accent-500: #C4923F;
+  --success-600: #4C7A5B;
+  --warning-600: #B07A2E;
+  --error-600: #A6432E;
+
+  --font-display: 'Newsreader', serif;
+  --font-sans: 'IBM Plex Sans', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --shadow-card: 0 1px 2px rgba(18,24,31,0.06), 0 1px 1px rgba(18,24,31,0.04);
+  --shadow-modal: 0 12px 24px rgba(18,24,31,0.14);
+}
+
+[data-theme="dark"] {
+  --ink-900: #ECE7DA;
+  --ink-800: #1A2029;
+  --ink-700: #A7ABB4;
+  --ink-400: #6B7482;
+  --paper-0: #11161D;
+  --paper-100: #1A2029;
+  --line-200: #2C333E;
+  --line-700: #2C333E;
+  --accent-600: #D3A461;
+  --accent-700: #C4923F;
+  --accent-100: #2C2210;
+  --success-600: #6BAA7E;
+  --warning-600: #D4A04A;
+  --error-600: #C96A52;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--paper-0);
+    color: var(--ink-900);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2 {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
+
+  h3, h4, h5, h6 {
+    font-family: var(--font-sans);
+    font-weight: 600;
+  }
+
+  code, pre {
+    font-family: var(--font-mono);
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line-200);
+  border-radius: 3px;
+}
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: var(--line-700);
+}
+
+/* Selection */
+::selection {
+  background-color: var(--accent-100);
+  color: var(--ink-900);
+}
