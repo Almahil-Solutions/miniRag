@@ -229,7 +229,7 @@ services:
       test: [ "CMD", "redis-cli", "ping" ]
       timeout: 10s
       retries: 5
-    command: [ "redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-minirag_redis}" ]
+    command: [ "redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}" ]
 
 networks:
   backend:

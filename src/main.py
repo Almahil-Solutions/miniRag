@@ -1,4 +1,7 @@
-from fastapi import FastAPI
+import logging
+
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from routes import base, data, nlp
 from helpers.config import get_settings
 from stores.llm import LLMProviderFactory, TemplateParser
@@ -9,10 +12,32 @@ from sqlalchemy.orm import sessionmaker
 from utils import setup_metrics, PrometheusMiddleware
 
 
+logger = logging.getLogger("uvicorn.error")
+
 app = FastAPI()
 
 # set up Prometheus metrics
 setup_metrics(app)
+
+# ── Global Exception Handler (P0.6) ───────────────────────────────────────────
+# Catches any unhandled exception, logs it server-side with a full traceback,
+# and returns a generic error response that does NOT leak implementation details
+# or stack traces to the client.
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    logger.error(
+        "Unhandled exception on %s %s: %s",
+        request.method,
+        request.url.path,
+        exc,
+        exc_info=True,
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"signal": "INTERNAL_SERVER_ERROR"},
+    )
+
 
 async def startup_span():
     settings = get_settings()
@@ -23,7 +48,7 @@ async def startup_span():
 
     llm_provider_factory = LLMProviderFactory(settings)
     vectordb_provider_factory = VectorDBProviderFactory(config=settings, db_client=app.db_client)
-    
+
     # Generation Client Providers
     app.generation_client = llm_provider_factory.create(provider=settings.GENERATION_BACKEND)
     app.generation_client.set_generation_model(model_id=settings.GENERATION_MODEL_ID)
@@ -42,7 +67,7 @@ async def startup_span():
         default_language=settings.DEFAULT_LANG
     )
 
-async def shutdown_span(): 
+async def shutdown_span():
     await app.db_engine.dispose()
     await app.vectordb_client.disconnect()
 
@@ -52,4 +77,3 @@ app.on_event("shutdown")(shutdown_span)
 app.include_router(base.base_router)
 app.include_router(data.data_router)
 app.include_router(nlp.nlp_router)
-
