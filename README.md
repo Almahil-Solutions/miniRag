@@ -33,21 +33,23 @@ export PS1="\[\033[01;32m\]\u@\h:\w\n\[\033[00m\]\$"
 pip install -r requirements.txt
 ```
 ### Setup environment variables
-1) Create a .env file in the root directory:
+The environment configuration templates are located in the `docker/env` directory.
+1) Copy the example templates to create your real `.env` files:
 ```bash
-cp .env.EXAMPLE .env
+# E.g., for local development
+cp docker/env/.env.Example.fastapi-app src/.env
 ```
-2) Set your values in the `.env` file. like `API_KEY` value.
+2) Open your new `.env` files and replace all `<CHANGE_ME>` values with secure secrets. 
+*Note: The application will refuse to start if it detects default placeholders.*
 
 ### Setup docker
-1) Create a .env file in the docker directory:
+For full deployment instructions using Docker, please refer to the detailed guide in [docker/README.md](docker/README.md).
+
+1) Prepare your environment files and `alembic.ini` as described in `docker/README.md`.
+2) Run the docker container from the `docker` directory:
 ```bash
-cp .env.EXAMPLE .env
-```
-2) Set your values in the `.env` file. like `MONGO_INITDB_ROOT_USERNAME` and `MONGO_INITDB_ROOT_PASSWORD` values.
-3) Run the docker container:
-```bash
-docker-compose up -d
+cd docker
+docker compose up -d
 ```
 
 ### Run the FastAPI server

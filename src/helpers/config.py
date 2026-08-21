@@ -11,6 +11,7 @@ _PLACEHOLDER_SECRETS = {
     "your_password",
     "postgres_password",
     "admin_password",
+    "<CHANGE_ME>",
 }
 
 
@@ -93,20 +94,20 @@ class Settings(BaseSettings):
     @field_validator("CELERY_RESULT_BACKEND", mode="after")
     @classmethod
     def reject_placeholder_redis(cls, v: Optional[str]) -> Optional[str]:
-        if v and any(p in v for p in ("minirag_redis",)):
+        if v and any(p in v for p in ("minirag_redis", "<CHANGE_ME>")):
             raise ValueError(
                 "CELERY_RESULT_BACKEND contains a known placeholder password "
-                "('minirag_redis'). Set a real REDIS_PASSWORD before starting."
+                "('minirag_redis' or '<CHANGE_ME>'). Set a real REDIS_PASSWORD before starting."
             )
         return v
 
     @field_validator("CELERY_BROKER_URL", mode="after")
     @classmethod
     def reject_placeholder_rabbitmq(cls, v: Optional[str]) -> Optional[str]:
-        if v and any(p in v for p in ("minirag_rabbitmq",)):
+        if v and any(p in v for p in ("minirag_rabbitmq", "<CHANGE_ME>")):
             raise ValueError(
                 "CELERY_BROKER_URL contains a known placeholder password "
-                "('minirag_rabbitmq'). Set a real RABBITMQ password before starting."
+                "('minirag_rabbitmq' or '<CHANGE_ME>'). Set a real RABBITMQ password before starting."
             )
         return v
 

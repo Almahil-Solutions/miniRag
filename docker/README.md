@@ -22,16 +22,17 @@ Create your environment files from the examples:
 ```bash
 # Create all required .env files from examples
 cd docker/env
-cp .env.example.app .env.app
-cp .env.example.postgres .env.postgres
-cp .env.example.grafana .env.grafana
-cp .env.example.postgres-exporter .env.postgres-exporter
+cp .env.Example.fastapi-app .env.fastapi-app
+cp .env.Example.postgres .env.postgres
+cp .env.Example.grafana .env.grafana
+cp .env.Example.postgres-exporter .env.postgres-exporter
+cp .env.Example.rabbitmq .env.rabbitmq
+cp .env.Example.redis .env.redis
 
 # Setup the Alembic configuration for the FastAPI application
-cd ..
-cd docker/minirag
-cp alembic.example.ini alembic.ini
-
+cd ../minirag
+cp alembic.ini.Example alembic.ini
+```
 ### 2. Start the services
 
 ```bash
