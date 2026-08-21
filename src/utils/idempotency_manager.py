@@ -1,9 +1,7 @@
-from re import I
-from alembic.util import status
 import hashlib
 import json
-from sqlalchemy import select, delete, func
 from datetime import datetime, timezone, timedelta
+from sqlalchemy import select, delete, func
 
 from models import CeleryTaskExecution
 
@@ -101,11 +99,15 @@ class IdempotencyManager:
         # Check if task is stuck (running longer than time limit + 20 seconds)
         if existing_task.status in ['PENDING', 'STARTED', 'RETRY']:
             if existing_task.started_at:
-                time_elapsed = (func.now() - existing_task.started_at).total_seconds()
-                time_gap = 20 # 20 seconds grace period
+                now_utc = datetime.now(timezone.utc)
+                started = existing_task.started_at
+                if started.tzinfo is None:
+                    started = started.replace(tzinfo=timezone.utc)
+                time_elapsed = (now_utc - started).total_seconds()
+                time_gap = 20  # 20 seconds grace period
                 if time_elapsed > (task_time_limit + time_gap):
-                    return True, existing_task # Task is stuck, allow re-execution
-            return False, existing_task # Task is still running within time limit
+                    return True, existing_task  # Task is stuck, allow re-execution
+            return False, existing_task  # Task is still running within time limit
 
         # Re-execute if previous task failed
         return True, existing_task
@@ -119,8 +121,7 @@ class IdempotencyManager:
         Returns:
             Number of deleted records
         """
-
-        cutoff_date = func.now() - timedelta(seconds=time_retention)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(seconds=time_retention)
 
         async with self.db_client() as session:
             async with session.begin():

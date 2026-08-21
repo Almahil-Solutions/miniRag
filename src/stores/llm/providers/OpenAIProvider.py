@@ -69,6 +69,31 @@ class OpenAIProvider(LLMInterface):
 
         return response.choices[0].message.content
 
+    def generate_text_stream(self, prompt: str, chat_history: list = [], max_output_tokens: int = None, temperature: float = None):
+        if not self.client:
+            self.logger.error("OpenAI client not initialized")
+            return
+        if not self.generation_model_id:
+            self.logger.error("generation model for OpenAI not set")
+            return
+
+        max_output_tokens = max_output_tokens if max_output_tokens else self.default_generation_output_max_tokens
+        temperature = temperature if temperature else self.default_generation_temperature
+
+        messages = list(chat_history)
+        messages.append(self.construct_prompt(prompt, OpenAIEnums.USER.value))
+
+        response = self.client.chat.completions.create(
+            model=self.generation_model_id,
+            messages=messages,
+            max_tokens=max_output_tokens,
+            temperature=temperature,
+            stream=True,
+        )
+
+        for chunk in response:
+            if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta and chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
 
     def embed_text(self, texts: Union[str, List[str]], document_type: str = None):
         if not self.client:

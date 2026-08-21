@@ -1,1 +1,43 @@
 .vscode
+
+# ── Secrets: Real environment files ──────────────────────────────────────────
+# Only .env.Example.* files should be committed.
+# Real .env files contain secrets and MUST NEVER be committed.
+docker/env/.env.*
+!docker/env/.env.Example.*
+
+# Also exclude root-level .env files (e.g., from local dev setups)
+.env
+.env.*
+!.env.example
+!.env.Example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs
+*.log
+
+# OS / editor artifacts
+.DS_Store
+Thumbs.db
+.agents/
+.todo

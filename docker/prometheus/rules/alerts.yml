@@ -1,0 +1,62 @@
+groups:
+  - name: minirag_alerts
+    rules:
+      # ── Rule 1: High 5xx Error Rate (> 1% over 5 minutes) ──────────────────
+      - alert: High5xxErrorRate
+        expr: >
+          (
+            sum(rate(http_requests_total{status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total[5m]))
+          ) * 100 > 1
+        for: 2m
+        labels:
+          severity: critical
+          service: fastapi
+        annotations:
+          summary: "High 5xx HTTP error rate detected on {{ $labels.instance }}"
+          description: "HTTP 5xx error rate is currently {{ $value | printf \"%.2f\" }}% (> 1% threshold for 2 minutes)."
+
+      # ── Rule 2: PostgreSQL Connection Saturation (> 80%) ──────────────────
+      - alert: PostgresConnectionSaturation
+        expr: >
+          (
+            pg_stat_activity_count
+            /
+            pg_settings_max_connections
+          ) * 100 > 80
+        for: 3m
+        labels:
+          severity: critical
+          service: postgres
+        annotations:
+          summary: "PostgreSQL connection pool near saturation on {{ $labels.instance }}"
+          description: "Postgres active connection usage is at {{ $value | printf \"%.2f\" }}% of max allowed connections (> 80% threshold for 3 minutes)."
+
+      # ── Rule 3: Celery Task Failure Rate (> 5% over 5 minutes) ─────────────
+      - alert: CeleryTaskFailureRateHigh
+        expr: >
+          (
+            sum(rate(celery_tasks_total{state="FAILURE"}[5m]))
+            /
+            sum(rate(celery_tasks_total[5m]))
+          ) * 100 > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: celery
+        annotations:
+          summary: "Celery task failure rate exceeds 5%"
+          description: "Celery background task failure rate is at {{ $value | printf \"%.2f\" }}% (> 5% threshold for 5 minutes)."
+
+      # ── Rule 4: High Request Latency (p95 > 2s over 5 minutes) ──────────────
+      - alert: HighRequestLatency
+        expr: >
+          histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: fastapi
+        annotations:
+          summary: "High HTTP p95 request latency on {{ $labels.instance }}"
+          description: "95th percentile response time is {{ $value | printf \"%.2f\" }}s (> 2s threshold for 5 minutes)."

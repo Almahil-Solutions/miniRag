@@ -1,5 +1,8 @@
 from enum import Enum
 
+# NOTE: 'ResponceSignal' has an intentional legacy spelling typo (with 'c' instead of 's').
+# Do NOT fix this typo, as it is preserved for backward compatibility across all API consumers
+# and stored client states.
 class ResponceSignal(Enum):
     SUCCESS = "success"
     FILE_TYPE_NOT_SUPPORTED = "file_type_not_supported"

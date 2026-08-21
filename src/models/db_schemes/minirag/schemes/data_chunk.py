@@ -16,8 +16,9 @@ class DataChunk(SQLAlchemyBase):
     chunk_order = Column(Integer, nullable=False)
 
 
-    chunk_project_id = Column(Integer, ForeignKey("projects.project_id"), nullable=False)
-    chunk_asset_id = Column(Integer, ForeignKey("assets.asset_id"), nullable=False)
+    chunk_project_id = Column(Integer, ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False)
+    chunk_asset_id = Column(Integer, ForeignKey("assets.asset_id", ondelete="CASCADE"), nullable=False)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
 
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(DateTime(timezone=True), nullable=True, onupdate=func.now())
@@ -28,6 +29,7 @@ class DataChunk(SQLAlchemyBase):
     __table_args__ = (
         Index('ix_chunk_project_id', chunk_project_id),
         Index('ix_chunk_asset_id', chunk_asset_id),
+        Index('ix_chunk_deleted_at', deleted_at),
     )
 
 

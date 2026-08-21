@@ -10,7 +10,7 @@ class LLMInterface(ABC):
         pass
 
     @abstractmethod
-    def set_embedding_model(self, model_id: str):
+    def set_embedding_model(self, model_id: str, embedding_size: int = 1536):
         pass
     
     @abstractmethod
@@ -19,6 +19,15 @@ class LLMInterface(ABC):
         chat_history: List=[],
         max_output_tokens: int = None,
         temperature: float = None, # controls the randomness of the output, 0 is deterministic (close to fact based), 1 is random (more creative)
+    ):
+        pass
+
+    @abstractmethod
+    def generate_text_stream(self,
+        prompt: str,
+        chat_history: List=[],
+        max_output_tokens: int = None,
+        temperature: float = None,
     ):
         pass
 

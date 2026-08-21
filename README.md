@@ -78,5 +78,51 @@ To Run **Flower Dashboard**, you can run the following command in a separate ter
 $ python -m celery -A celery_app flower --conf=flowerconfig.py
 ```
 
+Open your browser and navigate to `http://localhost:5555` to view the dashboard (HTTP Basic Auth required).
 
-open your browser and go to `http://localhost:5555` to see the dashboard.
+
+---
+
+## Running Tests & Quality Checks
+
+Install development and test dependencies:
+
+```bash
+pip install -r requirements-dev.txt
+```
+
+Run test suite with coverage:
+
+```bash
+cd src
+python -m pytest tests/ --cov=. --cov-report=term-missing -v
+```
+
+Run linting and static type checking:
+
+```bash
+ruff check src/
+mypy src/ --ignore-missing-imports
+```
+
+
+---
+
+## API Design & Versioning Policy
+
+### API Versioning
+- **Current Version:** All production endpoints are rooted under the `/api/v1/` prefix.
+- **Stability Guarantee:** `/api/v1/` APIs maintain strict backward compatibility. Non-breaking additions (optional fields, new endpoints) may be introduced within v1.
+- **Deprecation Policy:** Any breaking change will be introduced under a new version prefix (e.g. `/api/v2/`). Deprecated v1 endpoints will receive a minimum **6-month deprecation period** with warning headers (`Sunset` / `Deprecation`) prior to decommission.
+
+### `ResponceSignal` Legacy Naming
+- The enum and response signal `ResponceSignal` uses an intentional legacy spelling (with a `c` instead of `s`).
+- **Do not alter or refactor this identifier**: it is intentionally preserved to maintain backward compatibility across existing client SDKs, API integrations, and database logs.
+
+
+---
+
+## Security & Operations
+
+- **Flower Monitoring Security:** Flower dashboard access is restricted to localhost (`127.0.0.1:5555`) in Docker Compose and requires HTTP Basic Auth credentials via `CELERY_FLOWER_USER` and `CELERY_FLOWER_PASSWORD`.
+- **Per-Tenant LLM Quotas:** Users have configurable `monthly_llm_budget` limits tracked automatically via query audit logs to prevent runaway inference expenditures.

@@ -1,4 +1,8 @@
-from qdrant_client import QdrantClient, models
+try:
+    from qdrant_client import QdrantClient, models
+except ImportError:
+    QdrantClient = None
+    models = None
 from ..VectorDBInterface import VectorDBInterface
 from ..VectorDBEnums import VectorDBEnums, DistanceMethodEnums
 from  models import RetrievedDocument
@@ -145,4 +149,39 @@ class QdrantDBProvider(VectorDBInterface):
             })
             for result in results
         ]
+
+    async def delete_by_record_ids(self, collection_name: str, record_ids: list):
+        if not await self.is_collection_exists(collection_name) or not record_ids:
+            return False
+        try:
+            self.client.delete(
+                collection_name=collection_name,
+                points_selector=models.PointIdsList(points=record_ids)
+            )
+            return True
+        except Exception as e:
+            self.logger.error(f"Error deleting records from Qdrant: {e}")
+            return False
+
+    async def delete_by_asset_id(self, collection_name: str, asset_id: int):
+        if not await self.is_collection_exists(collection_name):
+            return False
+        try:
+            self.client.delete(
+                collection_name=collection_name,
+                points_selector=models.FilterSelector(
+                    filter=models.Filter(
+                        must=[
+                            models.FieldCondition(
+                                key="metadata.asset_id",
+                                match=models.MatchValue(value=asset_id)
+                            )
+                        ]
+                    )
+                )
+            )
+            return True
+        except Exception as e:
+            self.logger.error(f"Error deleting asset vectors from Qdrant: {e}")
+            return False
             

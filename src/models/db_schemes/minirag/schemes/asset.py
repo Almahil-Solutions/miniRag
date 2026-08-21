@@ -1,5 +1,5 @@
 from .minirag_base import SQLAlchemyBase
-from sqlalchemy import Column, String, Integer, DateTime, func, ForeignKey
+from sqlalchemy import Column, String, Integer, DateTime, Boolean, func, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy import Index
@@ -16,14 +16,22 @@ class Asset(SQLAlchemyBase):
     asset_size = Column(Integer, nullable=True)
     asset_config = Column(JSONB, nullable=True)
 
-    asset_project_id = Column(Integer, ForeignKey("projects.project_id"), nullable=False)
+    # Document versioning
+    asset_version = Column(Integer, nullable=False, default=1)
+    is_latest = Column(Boolean, nullable=False, default=True)
+
+    asset_project_id = Column(Integer, ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
 
     project = relationship("Project", back_populates="assets")
-    chunks = relationship("DataChunk", back_populates="asset")
+    chunks = relationship("DataChunk", back_populates="asset", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index('ix_asset_project_id', asset_project_id),
         Index('ix_asset_type', asset_type),
+        Index('ix_asset_is_latest', is_latest),
+        Index('ix_asset_deleted_at', deleted_at),
+        Index('ix_asset_project_name_version', asset_project_id, asset_name, asset_version),
     )
 
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())

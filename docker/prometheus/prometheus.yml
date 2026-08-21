@@ -2,13 +2,15 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+rule_files:
+  - "/etc/prometheus/rules/*.yml"
 
 scrape_configs:
 
   - job_name: 'fastapi'
     static_configs:
       - targets: ['fastapi:8000']
-    metrics_path: '/secret_metrics_route_971' # same path as in src/utils/metrics.py
+    metrics_path: '/metrics'
 
   - job_name: 'node-exporter'
     static_configs:

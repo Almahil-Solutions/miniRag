@@ -3,18 +3,15 @@ from helpers.config import get_settings
 
 from stores.llm import LLMProviderFactory, TemplateParser
 from stores.vectordb import VectorDBProviderFactory, VectorDBEnums
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
+from tasks.shared_engine import get_shared_engine, get_shared_sessionmaker
 
 settings = get_settings()
 
 
 async def get_setup_utils():
     settings = get_settings()
-    postgres_conn = f"postgresql+asyncpg://{settings.POSTGRES_USERNAME}:{settings.POSTGRES_PASSWORD}@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_MAIN_DATABASE}"
-    db_engine = create_async_engine(postgres_conn)
-    db_client = sessionmaker(
-        db_engine, class_=AsyncSession, expire_on_commit=False)
+    db_engine = get_shared_engine()
+    db_client = get_shared_sessionmaker()
 
     llm_provider_factory = LLMProviderFactory(settings)
     vectordb_provider_factory = VectorDBProviderFactory(config=settings, db_client=db_client)
