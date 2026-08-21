@@ -37,14 +37,17 @@ class DataController(BaseController):
         return True, ResponceSignal.SUCCESS.value
 
     def clean_file_name(self, file_name: str):
-        # remove special characters except _ and .
-        file_name = re.sub(r'[^a-zA-Z0-9_.]', '', file_name)
-
         # remove leading and trailing spaces
         file_name = file_name.strip()
 
-        # replace space with _
-        file_name = file_name.replace(" ", "_")
+        # replace whitespace with _
+        file_name = re.sub(r'\s+', '_', file_name)
+
+        # remove special characters except _ and .
+        file_name = re.sub(r'[^a-zA-Z0-9_.]', '', file_name)
+
+        # collapse multiple underscores
+        file_name = re.sub(r'_+', '_', file_name)
         return file_name
     
     def generate_unique_file_name(self, original_file_name: str, project_id: str):

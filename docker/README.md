@@ -72,12 +72,18 @@ docker compose down -v --remove-orphans
 | **FastAPI Docs** | `http://127.0.0.1:8000/docs` | Available only in `APP_ENV=development` |
 | **Prometheus** | `http://127.0.0.1:9090` | Internal monitoring (bound to localhost) |
 | **Grafana** | `http://127.0.0.1:3000` | Metrics dashboard (bound to localhost) |
-| **Flower** | `http://127.0.0.1:5555` | Celery task dashboard (bound to localhost) |
+| **Flower** | `http://127.0.0.1:5555` | Celery task dashboard (bound to localhost, Basic Auth required) |
 | **Qdrant** | `http://127.0.0.1:6333` | Vector database (bound to localhost) |
 | **RabbitMQ UI** | `http://127.0.0.1:15672` | Message broker management (bound to localhost) |
 | **PostgreSQL** | `127.0.0.1:5400` | Vector database (bound to localhost) |
 
-> **Security Note:** Only Nginx ports `80` and `443` are exposed publicly. All internal data and metrics services are restricted to `127.0.0.1` to prevent unauthenticated network access.
+> **Security Note:** Only Nginx ports `80` and `443` are exposed publicly. All internal data and metrics services are restricted to `127.0.0.1` to prevent unauthenticated network access. Celery Flower requires Basic Auth credentials configured via `CELERY_FLOWER_USER` and `CELERY_FLOWER_PASSWORD`.
+
+## API Versioning Policy
+- Production routes are namespaced under `/api/v1/`.
+- Non-breaking changes are delivered iteratively under `/api/v1/`.
+- Any breaking schema or behavioral revisions will introduce `/api/v2/` with a minimum 6-month deprecation period for v1 endpoints.
+
 
 ## Volume Management
 
