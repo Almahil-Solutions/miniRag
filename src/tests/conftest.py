@@ -5,6 +5,24 @@ import uuid
 from typing import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock
 
+# Set required environment variables for tests to prevent pydantic Settings validation errors
+os.environ.setdefault("APP_ENV", "testing")
+os.environ.setdefault("APP_NAME", "miniRAG_Test")
+os.environ.setdefault("APP_VERSION", "1.0.0")
+os.environ.setdefault("FILE_ALLOWED_TYPES", '["application/pdf", "text/plain"]')
+os.environ.setdefault("FILE_MAX_SIZE", "10485760")
+os.environ.setdefault("FILE_DEFAULT_CHUNK_SIZE", "512")
+os.environ.setdefault("GENERATION_BACKEND", "OPENAI")
+os.environ.setdefault("EMBEDDING_BACKEND", "OPENAI")
+os.environ.setdefault("VECTOR_DB_BACKEND", "PGVECTOR")
+os.environ.setdefault("VECTOR_DB_PATH", "dummy_path")
+os.environ.setdefault("POSTGRES_USERNAME", "test_user")
+os.environ.setdefault("POSTGRES_PASSWORD", "test_password123")
+os.environ.setdefault("POSTGRES_HOST", "localhost")
+os.environ.setdefault("POSTGRES_PORT", "5432")
+os.environ.setdefault("POSTGRES_MAIN_DATABASE", "test_db")
+os.environ.setdefault("JWT_SECRET_KEY", "test-secret-key-that-is-secure-for-tests-only")
+
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
