@@ -125,8 +125,6 @@ async def _index_project_data(task_instance, project_id: int, do_reset: int = 0 
         raise
     finally:
         try:
-            if db_engine:
-                await db_engine.dispose()
             if vectordb_client:
                 await vectordb_client.disconnect()
         except Exception as e:

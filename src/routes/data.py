@@ -71,13 +71,31 @@ async def upload_data(
         project_id=project.project_id,
     )
 
-    # "wb" binary write
+    # "wb" binary write with streaming size cap
     try:
+        total_bytes = 0
+        max_bytes = app_settings.FILE_MAX_SIZE * data_controller.size_scale
         async with aiofiles.open(file_path, "wb") as out_file:
             while chunk := await file.read(app_settings.FILE_DEFAULT_CHUNK_SIZE):
+                total_bytes += len(chunk)
+                if total_bytes > max_bytes:
+                    await out_file.close()
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                    return JSONResponse(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        content={
+                            "result_signal": ResponceSignal.FILE_SIZE_EXCEEDED.value
+                        }
+                    )
                 await out_file.write(chunk)
     except Exception as e:
         logger.error(f"File upload failed: {str(e)}")
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except Exception:
+                pass
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
