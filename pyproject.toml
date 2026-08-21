@@ -1,0 +1,60 @@
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["src/tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::UserWarning",
+    "ignore::sqlalchemy.exc.MovedIn20Warning",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    ".venv",
+    "venv",
+    "alembic",
+    "src/models/db_schemes/minirag/alembic",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = [
+    "E501",  # line too long
+    "E402",  # module level import not at top of file
+    "E712",  # comparison to True/False
+    "E722",  # do not use bare except
+    "B008",  # do not perform function calls in argument defaults (FastAPI Depends)
+    "F401",  # imported but unused (handled in __init__.py files)
+    "F841",  # local variable assigned but never used
+    "W291",  # trailing whitespace
+    "W292",  # no newline at end of file
+    "W293",  # blank line contains whitespace
+    "W391",  # blank line at end of file
+]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+follow_imports = "silent"
+check_untyped_defs = false
+disallow_untyped_defs = false
+disable_error_code = [
+    "attr-defined",
+    "assignment",
+    "arg-type",
+    "misc",
+    "call-overload",
+    "union-attr",
+    "override",
+    "return-value",
+    "var-annotated",
+]
+exclude = ["alembic"]
