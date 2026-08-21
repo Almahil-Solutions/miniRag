@@ -103,6 +103,22 @@ async def upload_data(
             }
         )
 
+    # Scan file for malware (P4.5)
+    is_clean, scan_meta = data_controller.scan_file_for_malware(file_path=file_path)
+    if not is_clean:
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except Exception:
+                pass
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "result_signal": "file_malware_detected",
+                "scan_details": scan_meta,
+            }
+        )
+
     # store asset information in the database
     asset_model = await AssetModel.create_instance(db_client=request.app.db_client)
     asset_resource = Asset(
@@ -110,6 +126,7 @@ async def upload_data(
         asset_type=AssetTypeEnum.FILE.value,
         asset_name=file_name,
         asset_size=os.path.getsize(file_path),
+        asset_config=scan_meta,
     )
 
     asset_record = await asset_model.create_asset(asset=asset_resource)
@@ -119,6 +136,220 @@ async def upload_data(
             "asset_name": file_name,
             "asset_id": str(asset_record.asset_id),
             "asset_uuid": str(asset_record.asset_uuid),
+            "asset_version": asset_record.asset_version,
+            "is_latest": asset_record.is_latest,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /{project_uuid}/documents   (P4.3 — owner-scoped paginated listing)
+# ---------------------------------------------------------------------------
+
+@data_router.get("/{project_uuid}/documents")
+async def list_project_documents(
+    request: Request,
+    project_uuid: UUID,
+    page: int = 1,
+    page_size: int = 10,
+    asset_type: str = None,
+    only_latest: bool = True,
+    user=Depends(get_current_user),
+    project=Depends(require_project_owner),
+):
+    """Retrieve a paginated list of documents (assets) for the project."""
+    asset_model = await AssetModel.create_instance(db_client=request.app.db_client)
+    assets, total_pages, total_records = await asset_model.get_project_assets_paginated(
+        asset_project_id=project.project_id,
+        page=page,
+        page_size=page_size,
+        asset_type=asset_type,
+        only_latest=only_latest,
+    )
+
+    return JSONResponse(
+        content={
+            "documents": [
+                {
+                    "asset_id": a.asset_id,
+                    "asset_uuid": str(a.asset_uuid),
+                    "asset_name": a.asset_name,
+                    "asset_type": a.asset_type,
+                    "asset_size": a.asset_size,
+                    "asset_version": a.asset_version,
+                    "is_latest": a.is_latest,
+                    "asset_config": a.asset_config,
+                    "created_at": a.created_at.isoformat() if a.created_at else None,
+                }
+                for a in assets
+            ],
+            "total_documents": total_records,
+            "total_pages": total_pages,
+            "page": page,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /{project_uuid}/documents/{asset_uuid}   (P4.3 — document metadata & stats)
+# ---------------------------------------------------------------------------
+
+@data_router.get("/{project_uuid}/documents/{asset_uuid}")
+async def get_document_details(
+    request: Request,
+    project_uuid: UUID,
+    asset_uuid: UUID,
+    user=Depends(get_current_user),
+    project=Depends(require_project_owner),
+):
+    """Retrieve metadata, version details, and chunk statistics for a document."""
+    asset_model = await AssetModel.create_instance(db_client=request.app.db_client)
+    chunk_model = await ChunkModel.create_instance(db_client=request.app.db_client)
+
+    asset = await asset_model.get_asset_by_uuid(
+        asset_uuid=asset_uuid,
+        asset_project_id=project.project_id,
+    )
+    if not asset:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"signal": "document_not_found"}
+        )
+
+    chunk_count = await chunk_model.count_asset_chunks(asset_id=asset.asset_id)
+    versions = await asset_model.get_asset_versions(
+        asset_project_id=project.project_id,
+        asset_name=asset.asset_name
+    )
+
+    return JSONResponse(
+        content={
+            "asset_id": asset.asset_id,
+            "asset_uuid": str(asset.asset_uuid),
+            "asset_name": asset.asset_name,
+            "asset_type": asset.asset_type,
+            "asset_size": asset.asset_size,
+            "asset_version": asset.asset_version,
+            "is_latest": asset.is_latest,
+            "total_chunks": chunk_count,
+            "asset_config": asset.asset_config,
+            "created_at": asset.created_at.isoformat() if asset.created_at else None,
+            "available_versions": [v.asset_version for v in versions],
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# DELETE /{project_uuid}/documents/{asset_uuid}   (P4.1, P4.3 — soft delete + purge vectors)
+# ---------------------------------------------------------------------------
+
+@data_router.delete("/{project_uuid}/documents/{asset_uuid}")
+async def delete_document(
+    request: Request,
+    project_uuid: UUID,
+    asset_uuid: UUID,
+    user=Depends(get_current_user),
+    project=Depends(require_project_owner),
+):
+    """Soft delete a document and its chunks, and purge its vectors from VectorDB."""
+    asset_model = await AssetModel.create_instance(db_client=request.app.db_client)
+    chunk_model = await ChunkModel.create_instance(db_client=request.app.db_client)
+
+    asset = await asset_model.get_asset_by_uuid(
+        asset_uuid=asset_uuid,
+        asset_project_id=project.project_id,
+    )
+    if not asset:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"signal": "document_not_found"}
+        )
+
+    # Soft delete chunks
+    deleted_chunks_count = await chunk_model.soft_delete_chunks_by_asset_id(asset_id=asset.asset_id)
+
+    # Purge vectors from VectorDB for this asset
+    try:
+        if hasattr(request.app, "vectordb_client") and request.app.vectordb_client is not None:
+            collection_name = f"collection_{request.app.vectordb_client.default_vector_size}_{project.project_id}".strip()
+            await request.app.vectordb_client.delete_by_asset_id(
+                collection_name=collection_name,
+                asset_id=asset.asset_id,
+            )
+    except Exception as exc:
+        logger.warning(f"Failed to delete vectors for asset {asset.asset_id}: {exc}")
+
+    # Soft delete asset record
+    await asset_model.soft_delete_asset_by_uuid(
+        asset_uuid=asset_uuid,
+        asset_project_id=project.project_id,
+    )
+
+    return JSONResponse(
+        content={
+            "signal": "success",
+            "message": "Document soft-deleted and vectors purged",
+            "asset_uuid": str(asset_uuid),
+            "chunks_purged": deleted_chunks_count,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# POST /{project_uuid}/documents/{asset_uuid}/reprocess   (P4.3 — document reprocess)
+# ---------------------------------------------------------------------------
+
+@data_router.post("/{project_uuid}/documents/{asset_uuid}/reprocess")
+async def reprocess_document(
+    request: Request,
+    project_uuid: UUID,
+    asset_uuid: UUID,
+    process_request: ProcessRequest,
+    user=Depends(get_current_user),
+    project=Depends(require_project_owner),
+    _rl=Depends(rate_limit_dependency),
+):
+    """Trigger reprocessing for a specific document asset."""
+    asset_model = await AssetModel.create_instance(db_client=request.app.db_client)
+    chunk_model = await ChunkModel.create_instance(db_client=request.app.db_client)
+
+    asset = await asset_model.get_asset_by_uuid(
+        asset_uuid=asset_uuid,
+        asset_project_id=project.project_id,
+    )
+    if not asset:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"signal": "document_not_found"}
+        )
+
+    # Soft delete old chunks and purge old vectors for this asset
+    await chunk_model.soft_delete_chunks_by_asset_id(asset_id=asset.asset_id)
+    try:
+        if hasattr(request.app, "vectordb_client") and request.app.vectordb_client is not None:
+            collection_name = f"collection_{request.app.vectordb_client.default_vector_size}_{project.project_id}".strip()
+            await request.app.vectordb_client.delete_by_asset_id(
+                collection_name=collection_name,
+                asset_id=asset.asset_id,
+            )
+    except Exception as exc:
+        logger.warning(f"Reprocess vector purge warning: {exc}")
+
+    # Dispatch workflow task for this specific file
+    task = process_and_push_workflow.delay(
+        project_id=project.project_id,
+        file_name=asset.asset_name,
+        chunk_size=process_request.chunk_size,
+        chunk_overlap=process_request.chunk_overlap,
+        do_reset=process_request.do_reset,
+    )
+
+    return JSONResponse(
+        content={
+            "result_signal": ResponceSignal.PROCEDD_AND_PUSH_WORKFLOW_READY.value,
+            "task_id": task.id,
+            "asset_uuid": str(asset_uuid),
+            "asset_name": asset.asset_name,
         }
     )
 

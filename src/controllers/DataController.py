@@ -61,6 +61,52 @@ class DataController(BaseController):
 
         return new_file_path, random_string + "_" + cleaned_file_name
 
+    def scan_file_for_malware(self, file_path: str) -> tuple[bool, dict]:
+        """Scan a file using ClamAV daemon via INSTREAM protocol.
+
+        Returns (is_clean, scan_metadata).
+        If ClamAV is disabled or unavailable, gracefully returns (True, metadata with status).
+        """
+        import socket
+        import struct
+        from datetime import datetime, timezone
+
+        scan_meta = {
+            "virus_scan": "skipped",
+            "scanned_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        if not getattr(self.app_settings, "CLAMAV_ENABLED", False):
+            return True, scan_meta
+
+        host = getattr(self.app_settings, "CLAMAV_HOST", "clamav")
+        port = getattr(self.app_settings, "CLAMAV_PORT", 3310)
+
+        try:
+            with socket.create_connection((host, port), timeout=10) as s:
+                s.sendall(b"zINSTREAM\0")
+                with open(file_path, "rb") as f:
+                    while chunk := f.read(65536):
+                        s.sendall(struct.pack("!I", len(chunk)) + chunk)
+                s.sendall(struct.pack("!I", 0))  # zero-length chunk signals EOF
+
+                response = s.recv(4096).decode("utf-8", errors="ignore")
+                if "FOUND" in response:
+                    scan_meta["virus_scan"] = "infected"
+                    scan_meta["details"] = response.strip()
+                    return False, scan_meta
+                elif "OK" in response:
+                    scan_meta["virus_scan"] = "clean"
+                    return True, scan_meta
+                else:
+                    scan_meta["virus_scan"] = "unknown"
+                    scan_meta["details"] = response.strip()
+                    return True, scan_meta
+        except Exception as exc:
+            scan_meta["virus_scan"] = "scan_error"
+            scan_meta["error"] = str(exc)
+            return True, scan_meta
+
 
         
         

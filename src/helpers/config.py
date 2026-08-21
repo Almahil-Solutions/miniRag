@@ -53,6 +53,13 @@ class Settings(BaseSettings):
     POSTGRES_HOST: str
     POSTGRES_PORT: int
     POSTGRES_MAIN_DATABASE: str
+    POSTGRES_POOL_SIZE: int = 10
+    POSTGRES_MAX_OVERFLOW: int = 20
+    POSTGRES_POOL_TIMEOUT: int = 30
+    POSTGRES_POOL_RECYCLE: int = 1800
+
+    # ── CORS Settings ─────────────────────────────────────────────────────────
+    CORS_ORIGINS: List[str] = ["*"]
 
     # ── JWT Auth ──────────────────────────────────────────────────────────────
     JWT_SECRET_KEY: str = "minirag-default-super-secret-jwt-key-for-dev-only-32bytes"
@@ -62,6 +69,11 @@ class Settings(BaseSettings):
     REDIS_HOST: str = "redis"
     REDIS_PORT: int = 6379
     REDIS_PASSWORD: Optional[str] = None
+
+    # ── Malware Scanning (ClamAV) ─────────────────────────────────────────────
+    CLAMAV_HOST: str = "clamav"
+    CLAMAV_PORT: int = 3310
+    CLAMAV_ENABLED: bool = False
 
     # Celery Configuration - Essential settings Only
     CELERY_BROKER_URL: Optional[str] = None
