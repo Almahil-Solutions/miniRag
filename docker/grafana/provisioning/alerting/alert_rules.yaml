@@ -1,0 +1,124 @@
+apiVersion: 1
+
+# ── Grafana Alerting Provisioning ─────────────────────────────────────────────
+contactPoints:
+  - orgId: 1
+    name: minirag-webhook-alerts
+    receivers:
+      - uid: minirag_webhook
+        type: webhook
+        settings:
+          url: http://minirag-alert-sink:8080/alerts
+          httpMethod: POST
+        disableResolveMessage: false
+
+policies:
+  - orgId: 1
+    receiver: minirag-webhook-alerts
+    group_by: ['alertname', 'service', 'severity']
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 4h
+    routes:
+      - receiver: minirag-webhook-alerts
+        matchers:
+          - severity = critical
+        continue: true
+
+groups:
+  - orgId: 1
+    name: minirag_service_health
+    folder: MiniRAG Alerts
+    interval: 1m
+    rules:
+      - uid: minirag_5xx_alert
+        title: "FastAPI 5xx Error Rate > 1%"
+        condition: B
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 300
+              to: 0
+            model:
+              expr: 'sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) * 100'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 1
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+              datasource:
+                name: Expression
+                type: __expr__
+                uid: __expr__
+              expression: A
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 2m
+        annotations:
+          summary: "FastAPI 5xx error rate is elevated"
+          description: "Over 1% of requests are failing with 5xx HTTP responses."
+        labels:
+          severity: critical
+          service: fastapi
+
+      - uid: minirag_postgres_saturation
+        title: "PostgreSQL Connection Pool Saturation > 80%"
+        condition: B
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 300
+              to: 0
+            model:
+              expr: '(pg_stat_activity_count / pg_settings_max_connections) * 100'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 80
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+              datasource:
+                name: Expression
+                type: __expr__
+                uid: __expr__
+              expression: A
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 3m
+        annotations:
+          summary: "PostgreSQL connection saturation critical"
+          description: "Database connection pool usage has exceeded 80%."
+        labels:
+          severity: critical
+          service: postgres

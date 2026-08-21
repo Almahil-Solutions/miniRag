@@ -134,6 +134,7 @@ services:
     volumes:
       - prometheus_data:/prometheus
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/rules:/etc/prometheus/rules:ro
     networks:
       - backend
     restart: always
@@ -152,6 +153,7 @@ services:
       - "127.0.0.1:3000:3000"
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
     env_file:
       - ./env/.env.grafana
     depends_on:
@@ -232,6 +234,19 @@ services:
       timeout: 10s
       retries: 5
     command: [ "redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}" ]
+
+  # ClamAV Antivirus Scanner (P4.5)
+  clamav:
+    image: clamav/clamav:latest
+    container_name: clamav
+    networks:
+      - backend
+    restart: always
+    healthcheck:
+      test: [ "CMD", "clamdscan", "--ping", "3" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 networks:
   backend:
