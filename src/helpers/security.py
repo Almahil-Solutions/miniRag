@@ -20,21 +20,25 @@ from fastapi import Depends, HTTPException, status, Request
 
 from helpers.config import get_settings
 
-# ---------------------------------------------------------------------------
-# Password hashing
-# ---------------------------------------------------------------------------
+import bcrypt
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
+# ---------------------------------------------------------------------------
+# Password hashing (using standard bcrypt library directly)
+# ---------------------------------------------------------------------------
 
 def hash_password(password: str) -> str:
-    """Return a bcrypt hash of *password*."""
-    return pwd_context.hash(password)
+    """Return a bcrypt hash of *password* (truncated to 72 bytes per bcrypt spec)."""
+    pw_bytes = password.encode("utf-8")[:72]
+    return bcrypt.hashpw(pw_bytes, bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
     """Return True if *plain* matches the *hashed* password."""
-    return pwd_context.verify(plain, hashed)
+    pw_bytes = plain.encode("utf-8")[:72]
+    try:
+        return bcrypt.checkpw(pw_bytes, hashed.encode("utf-8"))
+    except Exception:
+        return False
 
 
 # ---------------------------------------------------------------------------

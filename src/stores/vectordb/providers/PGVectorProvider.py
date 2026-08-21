@@ -102,7 +102,7 @@ class PGVectorProvider(VectorDBInterface):
         async with self.db_client() as session:
             async with session.begin():
                 table_info_sql = sql_text(
-                    f"""
+                    """
                     SELECT schemaname, tablename, tableowner, tablespace, hasindexes 
                     FROM pg_tables WHERE tablename = :collection_name
                     """) 
@@ -169,7 +169,7 @@ class PGVectorProvider(VectorDBInterface):
         index_name = self.default_index_name(collection_name)
         async with self.db_client() as session:
             async with session.begin():
-                is_index_existed_sql = sql_text(f"""
+                is_index_existed_sql = sql_text("""
                                             SELECT 1 
                                             FROM pg_indexes 
                                             WHERE tablename = :collection_name AND indexname = :index_name
