@@ -23,6 +23,15 @@ class LLMInterface(ABC):
         pass
 
     @abstractmethod
+    def generate_text_stream(self,
+        prompt: str,
+        chat_history: List=[],
+        max_output_tokens: int = None,
+        temperature: float = None,
+    ):
+        pass
+
+    @abstractmethod
     def embed_text(self, 
         texts: Union[str, List[str]], 
         document_type: str = None, # some providers embed the text in the context of the type of input(e.g. document, user query etc.) to give a better embedding

@@ -66,6 +66,33 @@ class CoHereProvider(LLMInterface):
 
         return response.text
 
+    def generate_text_stream(self, prompt: str, chat_history: list = [], max_output_tokens: int = None, temperature: float = None):
+        if not self.client:
+            self.logger.error("Cohere client not initialized")
+            return
+        if not self.generation_model_id:
+            self.logger.error("generation model for Cohere not set")
+            return
+
+        max_output_tokens = max_output_tokens if max_output_tokens else self.default_generation_output_max_tokens
+        temperature = temperature if temperature else self.default_generation_temperature
+
+        try:
+            response = self.client.chat_stream(
+                model=self.generation_model_id,
+                chat_history=chat_history,
+                message=self.preprocess_text(prompt),
+                max_tokens=max_output_tokens,
+                temperature=temperature,
+            )
+            for event in response:
+                if hasattr(event, "event_type") and event.event_type == "text-generation" and hasattr(event, "text"):
+                    yield event.text
+                elif hasattr(event, "delta") and hasattr(event.delta, "message") and hasattr(event.delta.message, "content"):
+                    if hasattr(event.delta.message.content, "text"):
+                        yield event.delta.message.content.text
+        except Exception as exc:
+            self.logger.error(f"Cohere streaming error: {exc}")
 
     def embed_text(self, texts: Union[str, List[str]], document_type: str = None):
         if not self.client:

@@ -24,6 +24,32 @@ from routes.users import users_router
 from routes.admin import admin_router
 
 
+import json
+from datetime import datetime, timezone
+
+# ── Structured JSON Logging (P2.3) ───────────────────────────────────────────
+
+class JSONLogFormatter(logging.Formatter):
+    """Formats log records as structured JSON lines."""
+    def format(self, record: logging.LogRecord) -> str:
+        log_entry = {
+            "timestamp": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+        for key in ("request_id", "user_id", "method", "path", "status_code", "latency_ms"):
+            if hasattr(record, key):
+                log_entry[key] = getattr(record, key)
+        if record.exc_info:
+            log_entry["exception"] = self.formatException(record.exc_info)
+        return json.dumps(log_entry, ensure_ascii=False)
+
+
+# Configure root/uvicorn handler with JSON formatter
+_log_handler = logging.StreamHandler()
+_log_handler.setFormatter(JSONLogFormatter())
+logging.basicConfig(level=logging.INFO, handlers=[_log_handler], force=True)
 logger = logging.getLogger("uvicorn.error")
 
 
@@ -43,7 +69,16 @@ async def lifespan(app: FastAPI):
         f"postgresql+asyncpg://{settings.POSTGRES_USERNAME}:{settings.POSTGRES_PASSWORD}"
         f"@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_MAIN_DATABASE}"
     )
-    app.db_engine = create_async_engine(postgres_conn)
+    # SQLAlchemy connection pooling (P2.5)
+    app.db_engine = create_async_engine(
+        postgres_conn,
+        pool_size=settings.POSTGRES_POOL_SIZE,
+        max_overflow=settings.POSTGRES_MAX_OVERFLOW,
+        pool_timeout=settings.POSTGRES_POOL_TIMEOUT,
+        pool_recycle=settings.POSTGRES_POOL_RECYCLE,
+        pool_pre_ping=True,
+        connect_args={"server_settings": {"statement_timeout": "30000"}},
+    )
     app.db_client = sessionmaker(
         app.db_engine, class_=AsyncSession, expire_on_commit=False
     )
@@ -120,13 +155,14 @@ setup_metrics(app)
 app.add_middleware(AuditLoggingMiddleware)
 
 # ── CORS middleware ────────────────────────────────────────────────────────────
-# TODO: Narrow ``allow_origins`` to your real frontend domain(s) in production.
+settings = get_settings()
+_allow_all = "*" in settings.CORS_ORIGINS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # Replace with explicit origins in prod
+    allow_origins=settings.CORS_ORIGINS,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
-    allow_credentials=False,      # Must be False when allow_origins=["*"]
+    allow_credentials=not _allow_all,
 )
 
 

@@ -154,3 +154,61 @@ class NLPController(BaseController):
             return answer, full_prompt, chat_history
 
         return answer, full_prompt, chat_history
+
+    async def answer_rag_question_stream(self, project: Project, query: str, limit: int = 10, language: str = "en"):
+        """Stream RAG answer as Server-Sent Events (SSE) (P5.2)."""
+        retrieved_documents = await self.search_vector_db_collection(project=project, text=query, limit=limit)
+
+        if not retrieved_documents or len(retrieved_documents) == 0:
+            yield f"data: {json.dumps({'error': 'No relevant documents found in knowledge base'})}\n\n"
+            yield "data: [DONE]\n\n"
+            return
+
+        self.template_parser.set_language(language)
+        system_prompt = self.template_parser.get("rag", "system_prompt")
+
+        delimited_chunks = [
+            f"[DOCUMENT {idx + 1} START]\n"
+            f"{self.generation_client.preprocess_text(doc.text)}\n"
+            f"[DOCUMENT {idx + 1} END]"
+            for idx, doc in enumerate(retrieved_documents)
+        ]
+
+        documents_prompt = "\n".join([
+            self.template_parser.get("rag", "document_prompt",
+                variables={
+                    "doc_num": idx + 1,
+                    "chunk_text": delimited_chunks[idx],
+                })
+            for idx, doc in enumerate(retrieved_documents)
+        ])
+
+        footer_prompt = self.template_parser.get("rag", "footer_prompt", variables={
+            "user_query": query
+        })
+
+        chat_history = [
+            self.generation_client.construct_prompt(
+                prompt=system_prompt,
+                role=self.generation_client.enums.SYSTEM.value,
+            )
+        ]
+
+        full_prompt = "\n\n".join([documents_prompt, footer_prompt])
+
+        settings = get_settings()
+        if settings.INPUT_DAFAULT_MAX_CHARACTERS:
+            max_prompt_chars: int = settings.INPUT_DAFAULT_MAX_CHARACTERS * 4
+            if len(full_prompt) > max_prompt_chars:
+                footer_len = len(footer_prompt) + 2
+                available = max_prompt_chars - footer_len
+                documents_prompt = documents_prompt[:available]
+                full_prompt = "\n\n".join([documents_prompt, footer_prompt])
+
+        for token in self.generation_client.generate_text_stream(
+            prompt=full_prompt,
+            chat_history=chat_history,
+        ):
+            yield f"data: {json.dumps({'token': token})}\n\n"
+
+        yield "data: [DONE]\n\n"

@@ -16,7 +16,7 @@ import os
 import time
 
 from fastapi import APIRouter, Depends, Query, status, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from helpers import get_settings, Settings
 from helpers.security import get_current_user, require_project_owner
@@ -188,6 +188,22 @@ async def answer_rag(
         embedding_client=request.app.embedding_client,
         template_parser=request.app.template_parser
     )
+
+    if search_request.stream:
+        return StreamingResponse(
+            nlp_controller.answer_rag_question_stream(
+                project=project,
+                query=search_request.text,
+                limit=search_request.limit,
+                language=search_request.language,
+            ),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            }
+        )
 
     answer, full_prompt, chat_history = await nlp_controller.answer_rag_question(
         project=project,
