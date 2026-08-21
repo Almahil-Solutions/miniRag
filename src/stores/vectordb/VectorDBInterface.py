@@ -47,4 +47,12 @@ class VectorDBInterface(ABC):
 
     @abstractmethod
     def search_by_vector(self, collection_name: str, vector: list, limit: int) -> List[RetrievedDocument]:
-        pass 
+        pass
+
+    @abstractmethod
+    def delete_by_record_ids(self, collection_name: str, record_ids: list):
+        pass
+
+    @abstractmethod
+    def delete_by_asset_id(self, collection_name: str, asset_id: int):
+        pass

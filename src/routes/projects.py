@@ -1,14 +1,8 @@
-"""Projects router — explicit CRUD for projects.
-
-Replaces the old auto-create-on-touch behaviour that was embedded inside
-``ProjectModel.get_project_or_create_one``.  Creating a project is now an
-intentional, authenticated action rather than a side-effect of the first
-upload or index call.
-"""
+from uuid import UUID
 from fastapi import APIRouter, Depends, status, Request
 from fastapi.responses import JSONResponse
-from helpers.security import get_current_user
-from models import ProjectModel
+from helpers.security import get_current_user, require_project_owner
+from models import ProjectModel, AssetModel, ChunkModel
 from models.db_schemes import Project
 import logging
 
@@ -33,9 +27,7 @@ async def create_project(
     project_model = await ProjectModel.create_instance(db_client=request.app.db_client)
 
     new_project = Project(
-        # owner_user_id will be populated once P1.2 (owner FK migration) is done.
-        # For now we create without it so this route can be exercised immediately.
-        # TODO P1.2: set owner_user_id=user.user_id here.
+        owner_user_id=user.user_id,
     )
 
     project = await project_model.create_project(project=new_project)
@@ -56,13 +48,17 @@ async def list_projects(
     page_size: int = 10,
     user=Depends(get_current_user),
 ):
-    """List all projects (paginated).
+    """List projects (paginated).
 
-    Admin users see all projects; regular users will only see their own once
-    the ``owner_user_id`` FK (P1.2) is in place.
+    Admin users see all projects; regular users only see their own.
     """
     project_model = await ProjectModel.create_instance(db_client=request.app.db_client)
-    projects, total_pages = await project_model.get_all_projects(page=page, page_size=page_size)
+    owner_filter = None if getattr(user, "role", None) == "admin" else user.user_id
+    projects, total_pages = await project_model.get_all_projects(
+        page=page,
+        page_size=page_size,
+        owner_user_id=owner_filter
+    )
 
     return JSONResponse(
         content={
@@ -75,5 +71,48 @@ async def list_projects(
             ],
             "total_pages": total_pages,
             "page": page,
+        }
+    )
+
+
+@projects_router.delete("/{project_uuid}", status_code=status.HTTP_200_OK)
+async def delete_project(
+    request: Request,
+    project_uuid: UUID,
+    user=Depends(get_current_user),
+    project=Depends(require_project_owner),
+):
+    """Soft-delete a project, its assets and data chunks, and purge its vector collection."""
+    project_model = await ProjectModel.create_instance(db_client=request.app.db_client)
+    asset_model = await AssetModel.create_instance(db_client=request.app.db_client)
+    chunk_model = await ChunkModel.create_instance(db_client=request.app.db_client)
+
+    # Soft delete chunks & assets
+    await chunk_model.soft_delete_chunks_by_project_id(project.project_id)
+    assets = await asset_model.get_all_project_assets(project.project_id, only_latest=False)
+    for asset in assets:
+        await asset_model.soft_delete_asset_by_uuid(asset.asset_uuid, project.project_id)
+
+    # Soft delete project record
+    deleted = await project_model.soft_delete_project_by_uuid(project_uuid)
+    if not deleted:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"signal": "project_not_found"}
+        )
+
+    # Purge VectorDB collection for this project
+    try:
+        if hasattr(request.app, "vectordb_client") and request.app.vectordb_client is not None:
+            collection_name = f"collection_{request.app.vectordb_client.default_vector_size}_{project.project_id}".strip()
+            await request.app.vectordb_client.delete_collection(collection_name=collection_name)
+    except Exception as exc:
+        log.warning("delete_project: error deleting vector collection: %s", exc)
+
+    return JSONResponse(
+        content={
+            "signal": "success",
+            "message": "Project soft-deleted successfully",
+            "project_uuid": str(project_uuid),
         }
     )

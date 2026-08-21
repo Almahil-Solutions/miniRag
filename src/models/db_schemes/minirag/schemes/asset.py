@@ -20,15 +20,17 @@ class Asset(SQLAlchemyBase):
     asset_version = Column(Integer, nullable=False, default=1)
     is_latest = Column(Boolean, nullable=False, default=True)
 
-    asset_project_id = Column(Integer, ForeignKey("projects.project_id"), nullable=False)
+    asset_project_id = Column(Integer, ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
 
     project = relationship("Project", back_populates="assets")
-    chunks = relationship("DataChunk", back_populates="asset")
+    chunks = relationship("DataChunk", back_populates="asset", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index('ix_asset_project_id', asset_project_id),
         Index('ix_asset_type', asset_type),
         Index('ix_asset_is_latest', is_latest),
+        Index('ix_asset_deleted_at', deleted_at),
         Index('ix_asset_project_name_version', asset_project_id, asset_name, asset_version),
     )
 

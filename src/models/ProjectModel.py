@@ -27,70 +27,84 @@ class ProjectModel(BaseDataModel):
         # except Exception as e:
             # return e
 
-    async def get_project_by_id(self, project_id: int):
-        """Return the Project with *project_id* (integer PK), or None if it does not exist.
-
-        Unlike ``get_project_or_create_one`` this method is a pure read: it
-        never auto-creates a project row.  Used internally; prefer
-        ``get_project_by_uuid`` for route path parameters (P1.7).
-        """
+    async def get_project_by_id(self, project_id: int, include_deleted: bool = False):
+        """Return the Project with *project_id* (integer PK), or None if it does not exist."""
         async with self.db_client() as session:
             async with session.begin():
                 query = select(Project).where(Project.project_id == project_id)
+                if not include_deleted:
+                    query = query.where(Project.deleted_at.is_(None))
                 result = await session.execute(query)
                 return result.scalar_one_or_none()
 
-    async def get_project_by_uuid(self, project_uuid):
-        """Return the Project with *project_uuid*, or None if it does not exist.
-
-        This is the preferred lookup for all external-facing routes (P1.7):
-        the public UUID is stable and does not leak the sequential integer PK.
-
-        Args:
-            project_uuid: Either a ``uuid.UUID`` instance or a UUID string.
-
-        Returns:
-            ``Project`` ORM object or ``None``.
-        """
+    async def get_project_by_uuid(self, project_uuid, include_deleted: bool = False):
+        """Return the Project with *project_uuid*, or None if it does not exist."""
         if not isinstance(project_uuid, _uuid.UUID):
             project_uuid = _uuid.UUID(str(project_uuid))
         async with self.db_client() as session:
             async with session.begin():
                 query = select(Project).where(Project.project_uuid == project_uuid)
+                if not include_deleted:
+                    query = query.where(Project.deleted_at.is_(None))
                 result = await session.execute(query)
                 return result.scalar_one_or_none()
 
     async def get_project_or_create_one(self, project_id: int):
-        # try:
-            async with self.db_client() as session:
-                async with session.begin():
-                    query = select(Project).where(Project.project_id == project_id)
-                    result = await session.execute(query)
-                    project = result.scalar_one_or_none()
-
-                    if project is None:
-                        project_record = Project(
-                            project_id=project_id
-                        )
-                        project = await self.create_project(project=project_record)
-                    return project
-
-    async def get_all_projects(self, page: int=1, page_size: int=10):
         async with self.db_client() as session:
             async with session.begin():
-                # count total number of documents
-                total_documents = await session.execute(select(
-                    func.count(Project.project_id)
-                    ))
+                query = select(Project).where(
+                    Project.project_id == project_id,
+                    Project.deleted_at.is_(None)
+                )
+                result = await session.execute(query)
+                project = result.scalar_one_or_none()
+
+                if project is None:
+                    project_record = Project(
+                        project_id=project_id
+                    )
+                    project = await self.create_project(project=project_record)
+                return project
+
+    async def get_all_projects(self, page: int = 1, page_size: int = 10, owner_user_id = None):
+        async with self.db_client() as session:
+            async with session.begin():
+                count_query = select(func.count(Project.project_id)).where(Project.deleted_at.is_(None))
+                if owner_user_id is not None:
+                    count_query = count_query.where(Project.owner_user_id == owner_user_id)
+
+                total_documents = await session.execute(count_query)
                 total_documents = total_documents.scalar_one()
 
-                # calculate total number of pages
                 total_pages = total_documents // page_size
                 if total_documents % page_size > 0:
                     total_pages += 1
 
-                query = select(Project).order_by(Project.created_at.desc()).limit(page_size).offset((page - 1) * page_size)
+                query = select(Project).where(Project.deleted_at.is_(None))
+                if owner_user_id is not None:
+                    query = query.where(Project.owner_user_id == owner_user_id)
+
+                query = query.order_by(Project.created_at.desc()).limit(page_size).offset((page - 1) * page_size)
                 result = await session.execute(query)
                 projects = result.scalars().all()
 
                 return projects, total_pages
+
+    async def soft_delete_project_by_uuid(self, project_uuid) -> bool:
+        """Soft delete a project and record deletion timestamp."""
+        if not isinstance(project_uuid, _uuid.UUID):
+            project_uuid = _uuid.UUID(str(project_uuid))
+        async with self.db_client() as session:
+            async with session.begin():
+                query = select(Project).where(
+                    Project.project_uuid == project_uuid,
+                    Project.deleted_at.is_(None)
+                )
+                result = await session.execute(query)
+                project = result.scalar_one_or_none()
+                if not project:
+                    return False
+                project.deleted_at = func.now()
+                session.add(project)
+                await session.commit()
+                return True
