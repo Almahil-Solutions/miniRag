@@ -18,6 +18,24 @@ class Document:
 
 logger = logging.getLogger("uvicorn.error")
 
+try:
+    from langchain.text_splitter import RecursiveCharacterTextSplitter
+except ImportError:
+    try:
+        from langchain_text_splitters import RecursiveCharacterTextSplitter
+    except ImportError:
+        RecursiveCharacterTextSplitter = None
+
+try:
+    import tiktoken
+    def _tiktoken_len(text: str) -> int:
+        tokenizer = tiktoken.get_encoding("cl100k_base")
+        return len(tokenizer.encode(text, disallowed_special=()))
+except Exception:
+    def _tiktoken_len(text: str) -> int:
+        return max(1, len(text) // 4)
+
+
 class ProcessController(BaseController):
     def __init__(self, project_id: str):
         super().__init__()
@@ -35,7 +53,6 @@ class ProcessController(BaseController):
             logger.error(f"File not found: {file_path}")
             return None
 
-
         if file_extension == ProcessingEnum.TXT.value:
             return TextLoader(file_path=file_path, encoding="utf-8")
         elif file_extension == ProcessingEnum.PDF.value:
@@ -50,31 +67,52 @@ class ProcessController(BaseController):
 
     def process_file_content(self, file_content: list, file_id: str, 
                             chunk_size: int = 100, chunk_overlap: int = 20):
-        
+        """Token-aware chunking using LangChain RecursiveCharacterTextSplitter (P5.1)."""
+        if not file_content:
+            return []
+
+        if RecursiveCharacterTextSplitter is not None:
+            text_splitter = RecursiveCharacterTextSplitter(
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
+                length_function=_tiktoken_len,
+                separators=["\n\n", "\n", ". ", " ", ""],
+            )
+
+            chunks = []
+            for record in file_content:
+                doc_text = getattr(record, "page_content", str(record))
+                doc_meta = getattr(record, "metadata", {})
+                if not doc_text or not doc_text.strip():
+                    continue
+
+                split_texts = text_splitter.split_text(doc_text)
+                for split_text in split_texts:
+                    if split_text.strip():
+                        chunks.append(Document(
+                            page_content=split_text.strip(),
+                            metadata=doc_meta if isinstance(doc_meta, dict) else {}
+                        ))
+            return chunks
+
+        # Fallback to simpler splitter if LangChain text_splitter is unavailable
         file_content_text = [
             record.page_content
             for record in file_content
         ]
-
         file_content_metadata = [
             record.metadata
             for record in file_content
         ]
-        chunks = self.process_simpler_splitter(
+        return self.process_simpler_splitter(
             texts=file_content_text,
             metadatas=file_content_metadata,
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
         )
 
-        return chunks
-
-
     def process_simpler_splitter(self, texts: List[str], metadatas: List[dict], chunk_size: int, chunk_overlap: int = 0, splitter_tag: str="\n"):
-
         full_text = " ".join(texts)
-
-        # split by splitter_tag
         lines = [ doc.strip() for doc in full_text.split(splitter_tag) if len(doc.strip()) > 1 ]
 
         chunks = []
@@ -85,7 +123,6 @@ class ProcessController(BaseController):
             current_chunk += line + splitter_tag
 
             if len(current_chunk) >= chunk_size:
-                # append to chunks
                 chunks.append(Document(
                     page_content=current_chunk.strip(),
                     metadata=doc_metadata
@@ -96,7 +133,6 @@ class ProcessController(BaseController):
                 else:
                     current_chunk = ""
 
-        # append last chunk
         if current_chunk.strip():
             chunks.append(Document(
                 page_content=current_chunk.strip(),

@@ -342,3 +342,33 @@ class PGVectorProvider(VectorDBInterface):
                     )
                     for record in records
                 ]
+
+    async def delete_by_record_ids(self, collection_name: str, record_ids: list):
+        self._validate_collection_name(collection_name)
+        if not await self.is_collection_exists(collection_name) or not record_ids:
+            return False
+        async with self.db_client() as session:
+            async with session.begin():
+                del_sql = sql_text(f"""
+                    DELETE FROM {collection_name}
+                    WHERE {PgVectorTableSchemeEnums.CHUNK_ID.value} = ANY(:record_ids)
+                """)
+                await session.execute(del_sql, {"record_ids": record_ids})
+                await session.commit()
+        return True
+
+    async def delete_by_asset_id(self, collection_name: str, asset_id: int):
+        self._validate_collection_name(collection_name)
+        if not await self.is_collection_exists(collection_name):
+            return False
+        async with self.db_client() as session:
+            async with session.begin():
+                del_sql = sql_text(f"""
+                    DELETE FROM {collection_name}
+                    WHERE {PgVectorTableSchemeEnums.CHUNK_ID.value} IN (
+                        SELECT chunk_id FROM chunks WHERE chunk_asset_id = :asset_id
+                    )
+                """)
+                await session.execute(del_sql, {"asset_id": asset_id})
+                await session.commit()
+        return True

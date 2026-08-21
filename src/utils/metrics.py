@@ -78,11 +78,11 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
 # Create Metrics Endpoint
 def setup_metrics(app: FastAPI):
     """
-    Setup Prometheus metrics middleware and endpoint.
+    Setup Prometheus metrics middleware and internal endpoint.
+    Scraped over the backend Docker network by Prometheus.
     """
     app.add_middleware(PrometheusMiddleware)
     
-    # recommended to use random path hard to guess.
-    @app.get("/secret_metrics_route_971" , include_in_schema=False)
+    @app.get("/metrics", include_in_schema=False)
     def metrics():
         return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
