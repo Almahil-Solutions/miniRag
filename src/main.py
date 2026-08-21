@@ -4,6 +4,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.cors import CORSMiddleware
 
 from helpers.config import get_settings
@@ -166,10 +168,35 @@ app.add_middleware(
 )
 
 
+# ── HTTP Exception Handler ─────────────────────────────────────────────────────
+# Passes through Starlette/FastAPI HTTP exceptions (404, 405, 422, etc.) with
+# their correct status codes.  Without this, the catch-all Exception handler
+# below would intercept them and incorrectly return 500.
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+    )
+
+
+# ── Validation Error Handler ───────────────────────────────────────────────────
+# Returns 422 with field-level error details for request body / query param
+# validation failures instead of leaking them via the generic 500 handler.
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors()},
+    )
+
+
 # ── Global Exception Handler (P0.6) ───────────────────────────────────────────
-# Catches any unhandled exception, logs it server-side with a full traceback,
-# and returns a generic error response that does NOT leak implementation details
-# or stack traces to the client.
+# Catches any remaining unhandled exception, logs it server-side with a full
+# traceback, and returns a generic error response that does NOT leak
+# implementation details or stack traces to the client.
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
