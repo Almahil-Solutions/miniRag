@@ -1,4 +1,14 @@
 services:
+  # Frontend Application
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/frontend/Dockerfile
+    container_name: frontend
+    networks:
+      - backend
+    restart: always
+
   # FastAPI Application
   fastapi:
     build:
@@ -88,6 +98,7 @@ services:
       - ./nginx/ssl:/etc/nginx/ssl:ro
     depends_on:
       - fastapi
+      - frontend
     networks:
       - backend
     restart: always
