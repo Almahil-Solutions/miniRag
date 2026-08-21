@@ -13,7 +13,7 @@ interface AuthState {
   init: () => void
 }
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+export const useAuthStore = create<AuthState>((set) => ({
   accessToken: localStorage.getItem('kayan_access_token'),
   user: null,
   isAuthenticated: !!localStorage.getItem('kayan_access_token'),

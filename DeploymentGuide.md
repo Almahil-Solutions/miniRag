@@ -170,9 +170,12 @@ Temporarily stop Nginx, run Certbot, and move the certs:
 sudo apt install certbot -y
 sudo certbot certonly --standalone -d yourdomain.com -d www.yourdomain.com
 
+# Create the SSL directory if it doesn't exist
+mkdir -p ~/workspace/miniRag/docker/nginx/ssl
+
 # Copy the generated certs into your project's SSL directory
-sudo cp /etc/letsencrypt/live/yourdomain.com/fullchain.pem ~/workspace/miniRag/nginx/ssl/
-sudo cp /etc/letsencrypt/live/yourdomain.com/privkey.pem ~/workspace/miniRag/nginx/ssl/
+sudo cp /etc/letsencrypt/live/yourdomain.com/fullchain.pem ~/workspace/miniRag/docker/nginx/ssl/
+sudo cp /etc/letsencrypt/live/yourdomain.com/privkey.pem ~/workspace/miniRag/docker/nginx/ssl/
 
 # Restart Nginx
 docker compose -f docker/docker-compose.yml restart nginx

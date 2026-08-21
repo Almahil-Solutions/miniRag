@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useAuthStore } from '@/stores/auth'
-import { useAuthInit } from '@/hooks/useAuth'
 import { usersApi } from '@/api/users'
 import { Header } from '@/components/layout/Header'
 import { Button } from '@/components/ui/Button'

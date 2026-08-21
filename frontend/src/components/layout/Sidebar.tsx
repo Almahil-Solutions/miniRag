@@ -1,8 +1,6 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard,
-  FolderOpen,
-  MessageSquareText,
   History,
   UserCircle,
   ShieldCheck,

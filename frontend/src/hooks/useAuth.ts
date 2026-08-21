@@ -4,7 +4,6 @@ import { authApi } from '@/api/auth'
 import type { LoginRequest, RegisterRequest } from '@/types'
 
 export function useAuthInit() {
-  const init = useAuthStore((s) => s.init)
   const setUser = useAuthStore((s) => s.setUser)
 
   return useQuery({

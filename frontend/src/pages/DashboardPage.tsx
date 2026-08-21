@@ -8,7 +8,6 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { Pagination } from '@/components/ui/Pagination'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Spinner } from '@/components/ui/Spinner'
-import { formatDate } from '@/lib/utils'
 
 export const DashboardPage = () => {
   const [page, setPage] = useState(1)
