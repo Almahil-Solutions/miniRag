@@ -160,7 +160,8 @@ class NLPController(BaseController):
         retrieved_documents = await self.search_vector_db_collection(project=project, text=query, limit=limit)
 
         if not retrieved_documents or len(retrieved_documents) == 0:
-            yield f"data: {json.dumps({'error': 'No relevant documents found in knowledge base'})}\n\n"
+            msg = "No relevant documents found in the project's vector index. Please ensure documents have been processed and indexed."
+            yield f"data: {json.dumps({'error': msg, 'token': msg, 'content': msg})}\n\n"
             yield "data: [DONE]\n\n"
             return
 
@@ -205,10 +206,16 @@ class NLPController(BaseController):
                 documents_prompt = documents_prompt[:available]
                 full_prompt = "\n\n".join([documents_prompt, footer_prompt])
 
-        for token in self.generation_client.generate_text_stream(
-            prompt=full_prompt,
-            chat_history=chat_history,
-        ):
-            yield f"data: {json.dumps({'token': token})}\n\n"
+        try:
+            for token in self.generation_client.generate_text_stream(
+                prompt=full_prompt,
+                chat_history=chat_history,
+            ):
+                if token:
+                    yield f"data: {json.dumps({'token': token, 'content': token})}\n\n"
+        except Exception as exc:
+            self.logger.error(f"Error during RAG streaming: {exc}")
+            err_msg = f"LLM Generation Error: {str(exc)}"
+            yield f"data: {json.dumps({'error': err_msg, 'token': err_msg, 'content': err_msg})}\n\n"
 
         yield "data: [DONE]\n\n"

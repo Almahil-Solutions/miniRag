@@ -83,17 +83,21 @@ class OpenAIProvider(LLMInterface):
         messages = list(chat_history)
         messages.append(self.construct_prompt(prompt, OpenAIEnums.USER.value))
 
-        response = self.client.chat.completions.create(
-            model=self.generation_model_id,
-            messages=messages,
-            max_tokens=max_output_tokens,
-            temperature=temperature,
-            stream=True,
-        )
+        try:
+            response = self.client.chat.completions.create(
+                model=self.generation_model_id,
+                messages=messages,
+                max_tokens=max_output_tokens,
+                temperature=temperature,
+                stream=True,
+            )
 
-        for chunk in response:
-            if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta and chunk.choices[0].delta.content:
-                yield chunk.choices[0].delta.content
+            for chunk in response:
+                if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta and chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+        except Exception as exc:
+            self.logger.error(f"OpenAI/NVIDIA streaming error: {exc}")
+            yield f"\n[LLM Error: {str(exc)}]"
 
     def embed_text(self, texts: Union[str, List[str]], document_type: str = None):
         if not self.client:

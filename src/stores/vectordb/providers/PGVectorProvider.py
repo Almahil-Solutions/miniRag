@@ -105,14 +105,19 @@ class PGVectorProvider(VectorDBInterface):
                     """
                     SELECT schemaname, tablename, tableowner, tablespace, hasindexes 
                     FROM pg_tables WHERE tablename = :collection_name
-                    """) 
-                count_sql = sql_text(f"SELECT COUNT(*) FROM {collection_name}")
+                    """)
                 table_info = await session.execute(table_info_sql, {"collection_name": collection_name})
-                count = await session.execute(count_sql)
                 table_data = table_info.fetchone()
+
+                # Collection doesn't exist yet — project has not been indexed.
+                # Return None so the route layer can respond with a 400 instead of crashing.
                 if not table_data:
                     return None
-                
+
+                # Table exists — safe to COUNT rows now.
+                count_sql = sql_text(f"SELECT COUNT(*) FROM {collection_name}")
+                count = await session.execute(count_sql)
+
         return {
             "table_info": {
                 "schema_name": table_data[0],

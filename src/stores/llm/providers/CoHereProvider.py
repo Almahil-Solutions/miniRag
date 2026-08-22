@@ -86,11 +86,24 @@ class CoHereProvider(LLMInterface):
                 temperature=temperature,
             )
             for event in response:
-                if hasattr(event, "event_type") and event.event_type == "text-generation" and hasattr(event, "text"):
+                # 1) Direct event.text attribute (e.g. text-generation)
+                if hasattr(event, "text") and event.text:
                     yield event.text
+                # 2) Delta message content text (Cohere v5+ / v2 chat stream)
                 elif hasattr(event, "delta") and hasattr(event.delta, "message") and hasattr(event.delta.message, "content"):
-                    if hasattr(event.delta.message.content, "text"):
-                        yield event.delta.message.content.text
+                    content = event.delta.message.content
+                    if hasattr(content, "text") and content.text:
+                        yield content.text
+                # 3) event_type == "text-generation"
+                elif hasattr(event, "event_type") and event.event_type == "text-generation" and hasattr(event, "text"):
+                    yield event.text
+                # 4) type == "content-delta"
+                elif getattr(event, "type", None) == "content-delta" and hasattr(event, "delta"):
+                    delta = event.delta
+                    if hasattr(delta, "text") and delta.text:
+                        yield delta.text
+                    elif hasattr(delta, "message") and hasattr(delta.message, "content") and hasattr(delta.message.content, "text"):
+                        yield delta.message.content.text
         except Exception as exc:
             self.logger.error(f"Cohere streaming error: {exc}")
 

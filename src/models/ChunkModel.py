@@ -129,3 +129,19 @@ class ChunkModel(BaseDataModel):
             result = await session.execute(query)
             records_count = result.scalar_one_or_none()
         return records_count
+
+    async def get_chunk_counts_by_asset_ids(self, asset_ids: list[int]) -> dict[int, int]:
+        if not asset_ids:
+            return {}
+        async with self.db_client() as session:
+            query = (
+                select(DataChunk.chunk_asset_id, func.count(DataChunk.chunk_id))
+                .where(
+                    DataChunk.chunk_asset_id.in_(asset_ids),
+                    DataChunk.deleted_at.is_(None)
+                )
+                .group_by(DataChunk.chunk_asset_id)
+            )
+            result = await session.execute(query)
+            return {row[0]: row[1] for row in result.all()}
+

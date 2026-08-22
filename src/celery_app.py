@@ -85,8 +85,8 @@ celery_app.conf.update(
         "tasks.file_processing.process_project_files": {"queue": "file_processing_queue"},
         "tasks.data_indexing.index_project_data": {"queue": "data_indexing_queue"},
         "tasks.process_workflow.process_and_push_workflow": {"queue": "file_processing_queue"},
+        "tasks.process_workflow.push_after_process_task": {"queue": "data_indexing_queue"},
         "tasks.maintenance.clean_celery_execution_table": {"queue": "default"},
-
     },
 
     # Beat schedule - Periodic tasks
