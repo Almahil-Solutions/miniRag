@@ -18,7 +18,7 @@ class User(SQLAlchemyBase):
     email = Column(String, nullable=False, unique=True, index=True)
     hashed_password = Column(String, nullable=False)
     full_name = Column(String, nullable=True)
-    role = Column(SAEnum(UserRole), nullable=False, default=UserRole.MEMBER)
+    role = Column(SAEnum(UserRole, values_callable=lambda e: [x.value for x in e]), nullable=False, default=UserRole.MEMBER)
     is_active = Column(Boolean, nullable=False, default=True)
     plan = Column(String, nullable=False, default="free")
     monthly_llm_budget = Column(Float, nullable=True, default=100.0)

@@ -159,6 +159,7 @@ async def list_project_documents(
 ):
     """Retrieve a paginated list of documents (assets) for the project."""
     asset_model = await AssetModel.create_instance(db_client=request.app.db_client)
+    chunk_model = await ChunkModel.create_instance(db_client=request.app.db_client)
     assets, total_pages, total_records = await asset_model.get_project_assets_paginated(
         asset_project_id=project.project_id,
         page=page,
@@ -166,6 +167,9 @@ async def list_project_documents(
         asset_type=asset_type,
         only_latest=only_latest,
     )
+
+    asset_ids = [a.asset_id for a in assets]
+    chunk_counts = await chunk_model.get_chunk_counts_by_asset_ids(asset_ids=asset_ids)
 
     return JSONResponse(
         content={
@@ -178,6 +182,7 @@ async def list_project_documents(
                     "asset_size": a.asset_size,
                     "asset_version": a.asset_version,
                     "is_latest": a.is_latest,
+                    "total_chunks": chunk_counts.get(a.asset_id, 0),
                     "asset_config": a.asset_config,
                     "created_at": a.created_at.isoformat() if a.created_at else None,
                 }
@@ -418,3 +423,37 @@ async def process_and_push_endpoint(
             "workflow_id": workflow_task.id
         }
     )
+
+
+# ---------------------------------------------------------------------------
+# GET /task/{task_id}   (Check async task status)
+# ---------------------------------------------------------------------------
+
+@data_router.get("/task/{task_id}")
+async def get_task_status(
+    task_id: str,
+    user=Depends(get_current_user),
+):
+    """Retrieve the current execution status of an async Celery task."""
+    try:
+        from celery.result import AsyncResult
+        from celery_app import celery_app
+        res = AsyncResult(task_id, app=celery_app)
+        task_info = {
+            "task_id": task_id,
+            "status": res.status,
+            "ready": res.ready(),
+            "successful": res.successful() if res.ready() else False,
+            "result": str(res.result) if isinstance(res.result, Exception) else res.result,
+        }
+        return JSONResponse(content=task_info)
+    except Exception as exc:
+        return JSONResponse(
+            content={
+                "task_id": task_id,
+                "status": "UNKNOWN",
+                "ready": False,
+                "error": str(exc),
+            }
+        )
+

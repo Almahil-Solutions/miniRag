@@ -241,10 +241,10 @@ services:
       - backend
     restart: always
     healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
+      test: [ "CMD", "sh", "-c", "redis-cli -a $REDIS_PASSWORD ping" ]
       timeout: 10s
       retries: 5
-    command: [ "redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}" ]
+    command: [ "sh", "-c", "redis-server --appendonly yes --requirepass $REDIS_PASSWORD" ]
 
   # ClamAV Antivirus Scanner (P4.5)
   clamav:
