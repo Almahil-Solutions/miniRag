@@ -32,7 +32,7 @@ export async function streamAnswer(
 ): Promise<void> {
   const token = localStorage.getItem('kayan_access_token')
   const response = await fetch(
-    `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/api/v1/nlp/index/answer/${projectUuid}`,
+    `${import.meta.env.VITE_API_BASE_URL ?? ''}/api/v1/nlp/index/answer/${projectUuid}`,
     {
       method: 'POST',
       headers: {
