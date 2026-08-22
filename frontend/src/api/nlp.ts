@@ -62,11 +62,14 @@ export async function streamAnswer(
     buffer = lines.pop() || ''
     for (const line of lines) {
       if (line.startsWith('data: ')) {
-        const payload = line.slice(6)
-        if (payload === '[DONE]') return
+        const payload = line.slice(6).trim()
+        if (!payload || payload === '[DONE]') return
         try {
           const parsed = JSON.parse(payload)
-          if (parsed.content) onChunk(parsed.content)
+          const chunkText = parsed.token ?? parsed.content ?? parsed.text ?? parsed.error
+          if (chunkText !== undefined) {
+            onChunk(String(chunkText))
+          }
         } catch {
           onChunk(payload)
         }

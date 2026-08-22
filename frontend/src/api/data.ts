@@ -5,6 +5,7 @@ import type {
   UploadResponse,
   ProcessRequest,
   TaskResponse,
+  TaskStatusResponse,
 } from '@/types'
 
 export const dataApi = {
@@ -35,4 +36,8 @@ export const dataApi = {
 
   processAndPush: (projectUuid: string, data: ProcessRequest) =>
     api.post<TaskResponse>(`/api/v1/data/process-and-push/${projectUuid}`, data),
+
+  getTaskStatus: (taskId: string) =>
+    api.get<TaskStatusResponse>(`/api/v1/data/task/${taskId}`),
 }
+

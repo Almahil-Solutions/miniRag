@@ -13,6 +13,7 @@ export interface DocumentAsset {
   asset_size: number
   asset_version: number
   is_latest: boolean
+  total_chunks?: number
   asset_config: Record<string, unknown>
   created_at: string
 }
@@ -52,3 +53,13 @@ export interface TaskResponse {
   task_id?: string
   workflow_id?: string
 }
+
+export interface TaskStatusResponse {
+  task_id: string
+  status: 'PENDING' | 'STARTED' | 'SUCCESS' | 'FAILURE' | 'RETRY' | 'UNKNOWN'
+  ready: boolean
+  successful?: boolean
+  result?: unknown
+  error?: string
+}
+
